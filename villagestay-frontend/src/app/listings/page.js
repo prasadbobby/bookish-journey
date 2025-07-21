@@ -31,12 +31,15 @@ import {
   HomeIcon,
   TreePineIcon,
   BuildingStorefrontIcon,
-  ChevronDownIcon
+  ChevronDownIcon,
+  ClockIcon,
+  ArrowPathIcon,
+  InformationCircleIcon,
+  EyeDropperIcon
 } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartSolidIcon, StarIcon as StarSolidIcon } from '@heroicons/react/24/solid';
 import Providers from '@/components/providers/Providers';
 import AppLayout from '@/components/layout/AppLayout';
-import WeatherRecommendations from '@/components/weather/WeatherRecommendations';
 import { listingsAPI, aiAPI } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import toast from 'react-hot-toast';
@@ -45,9 +48,11 @@ const ListingsPage = () => {
   const searchParams = useSearchParams();
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [weatherRecommendations, setWeatherRecommendations] = useState(null);
-  const [showWeatherSearch, setShowWeatherSearch] = useState(false);
+  const [weatherData, setWeatherData] = useState(null);
+  const [weatherLoading, setWeatherLoading] = useState(false);
+  const [showWeatherModal, setShowWeatherModal] = useState(false);
   const [weatherEnhancedListings, setWeatherEnhancedListings] = useState([]);
+  const [showWeatherSearch, setShowWeatherSearch] = useState(false);
   const [favorites, setFavorites] = useState(new Set());
   const [viewMode, setViewMode] = useState('grid');
   const [hoveredCard, setHoveredCard] = useState(null);
@@ -76,6 +81,159 @@ const ListingsPage = () => {
     total_count: 0,
     total_pages: 0
   });
+
+  // Weather helper functions
+  const getWeatherIcon = (weatherMain, temp) => {
+    const main = weatherMain?.toLowerCase();
+    
+    if (temp > 30) return '☀️';
+    if (temp < 15) return '🌨️';
+    
+    switch (main) {
+      case 'clear': return '☀️';
+      case 'rain': return '🌧️';
+      case 'drizzle': return '🌦️';
+      case 'snow': return '❄️';
+      case 'clouds': return '☁️';
+      case 'thunderstorm': return '⛈️';
+      case 'mist':
+      case 'fog': return '🌫️';
+      default: return '🌤️';
+    }
+  };
+
+  const getTemperatureIcon = (temp) => {
+    if (temp > 35) return '🔥';
+    if (temp < 10) return '❄️';
+    return '🌡️';
+  };
+
+  const getCategoryIcon = (category) => {
+    const icons = {
+      'outdoor': '🚶‍♂️',
+      'cultural': '🎭',
+      'farming': '🌾',
+      'craft': '🎨',
+      'wellness': '🧘‍♀️',
+      'photography': '📸',
+      'cooking': '👨‍🍳',
+      'nature': '🌿',
+      'adventure': '🏔️',
+      'spiritual': '🕉️'
+    };
+    return icons[category] || '✨';
+  };
+
+  const getPriorityBadge = (priority) => {
+    const colors = {
+      high: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+      medium: 'bg-amber-100 text-amber-800 border-amber-200',
+      low: 'bg-slate-100 text-slate-600 border-slate-200'
+    };
+    return colors[priority] || colors.medium;
+  };
+
+  const getWeatherAdvice = (weather) => {
+    if (!weather) return null;
+    
+    const temp = weather.temperature;
+    const condition = weather.main?.toLowerCase();
+    
+    if (temp > 35) {
+      return {
+        type: 'warning',
+        message: 'Very hot weather. Stay hydrated and avoid midday sun.',
+        bgColor: 'bg-red-50',
+        borderColor: 'border-red-200',
+        textColor: 'text-red-800'
+      };
+    } else if (temp < 10) {
+      return {
+        type: 'info',
+        message: 'Cold weather. Pack warm clothes and enjoy cozy indoor activities.',
+        bgColor: 'bg-blue-50',
+        borderColor: 'border-blue-200',
+        textColor: 'text-blue-800'
+      };
+    } else if (condition === 'rain') {
+      return {
+        type: 'info',
+        message: 'Rainy weather. Perfect for indoor cultural activities.',
+        bgColor: 'bg-blue-50',
+        borderColor: 'border-blue-200',
+        textColor: 'text-blue-800'
+      };
+    } else {
+      return {
+        type: 'success',
+        message: 'Great weather for exploring village life and local culture.',
+        bgColor: 'bg-emerald-50',
+        borderColor: 'border-emerald-200',
+        textColor: 'text-emerald-800'
+      };
+    }
+  };
+
+  // Weather API functions
+  const fetchWeatherRecommendations = async () => {
+    if (!filters.location.trim()) {
+      toast.error('Please enter a location first');
+      return;
+    }
+
+    setWeatherLoading(true);
+    try {
+      const response = await aiAPI.getWeatherRecommendations({ location: filters.location.trim() });
+      setWeatherData(response);
+      toast.success('🌤️ Weather insights loaded!');
+    } catch (error) {
+      console.error('Weather recommendations error:', error);
+      const errorMessage = error.response?.data?.error || 'Unable to get weather data for this location';
+      toast.error(errorMessage);
+    } finally {
+      setWeatherLoading(false);
+    }
+  };
+
+  const handleWeatherEnhancedSearch = async () => {
+    if (!filters.location.trim()) {
+      toast.error('Please enter a location for smart search');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      console.log('🔍 Starting weather-enhanced search for:', filters.location);
+      
+      const response = await aiAPI.getWeatherEnhancedSearch({
+        location: filters.location,
+        check_in: filters.check_in,
+        check_out: filters.check_out,
+        preferences: ['outdoor', 'cultural', 'farming']
+      });
+
+      console.log('📊 Weather search response:', response);
+
+      if (response && response.weather_enhanced_listings) {
+        setWeatherEnhancedListings(response.weather_enhanced_listings);
+        setWeatherData(response);
+        setShowWeatherSearch(true);
+        
+        console.log('✅ Weather enhanced listings set:', response.weather_enhanced_listings.length);
+        toast.success(`🌤️ Found ${response.weather_enhanced_listings.length} weather-optimized results!`);
+      } else {
+        console.log('⚠️ No weather enhanced listings in response');
+        setShowWeatherSearch(false);
+        toast.info('Weather data loaded, showing regular results');
+      }
+    } catch (error) {
+      console.error('❌ Weather search error:', error);
+      setShowWeatherSearch(false);
+      toast.error('Failed to get weather-enhanced recommendations');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Memoized fetch function to prevent recreating on every render
   const fetchListings = useCallback(async () => {
@@ -147,48 +305,6 @@ const ListingsPage = () => {
     fetchListings();
   }, [fetchListings]);
 
-const handleWeatherEnhancedSearch = useCallback(async () => {
-  if (!filters.location.trim()) {
-    toast.error('Please enter a location for smart search');
-    return;
-  }
-
-  setLoading(true);
-  try {
-    console.log('🔍 Starting weather-enhanced search for:', filters.location);
-    
-    const response = await aiAPI.getWeatherEnhancedSearch({
-      location: filters.location,
-      check_in: filters.check_in,
-      check_out: filters.check_out,
-      preferences: ['outdoor', 'cultural', 'farming']
-    });
-
-    console.log('📊 Weather search response:', response);
-
-    // Check if we have weather enhanced listings
-    if (response && response.weather_enhanced_listings) {
-      setWeatherEnhancedListings(response.weather_enhanced_listings);
-      setWeatherRecommendations(response);
-      setShowWeatherSearch(true);
-      
-      console.log('✅ Weather enhanced listings set:', response.weather_enhanced_listings.length);
-      toast.success(`🌤️ Found ${response.weather_enhanced_listings.length} weather-optimized results!`);
-    } else {
-      console.log('⚠️ No weather enhanced listings in response');
-      // Fallback to regular search if no weather results
-      setShowWeatherSearch(false);
-      toast.info('Weather data loaded, showing regular results');
-    }
-  } catch (error) {
-    console.error('❌ Weather search error:', error);
-    setShowWeatherSearch(false);
-    toast.error('Failed to get weather-enhanced recommendations');
-  } finally {
-    setLoading(false);
-  }
-}, [filters.location, filters.check_in, filters.check_out]);
-
   const clearFilters = useCallback(() => {
     setFilters({
       search: '',
@@ -203,6 +319,7 @@ const handleWeatherEnhancedSearch = useCallback(async () => {
       order: 'desc'
     });
     setShowWeatherSearch(false);
+    setWeatherData(null);
     // Reset pagination
     setPagination(prev => ({ ...prev, page: 1 }));
   }, []);
@@ -250,7 +367,6 @@ const handleWeatherEnhancedSearch = useCallback(async () => {
     const handleImageError = useCallback(() => {
       if (!imageError) {
         setImageError(true);
-        // Use a fallback placeholder
         setImageSrc('');
       }
     }, [imageError]);
@@ -270,7 +386,6 @@ const handleWeatherEnhancedSearch = useCallback(async () => {
           {/* Image Container */}
           <div className="relative h-64 overflow-hidden bg-gradient-to-br from-green-100 to-emerald-200">
             {imageError || !imageSrc ? (
-              // Fallback image component
               <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-green-400 to-emerald-500">
                 <div className="text-center text-white">
                   <div className="text-4xl mb-2">🏘️</div>
@@ -493,7 +608,6 @@ const handleWeatherEnhancedSearch = useCallback(async () => {
             <div className="absolute inset-0">
               <div className="absolute inset-0 opacity-20">
                 <div className="absolute top-0 left-0 w-full h-full">
-                  {/* Simple dot pattern using CSS */}
                   <div 
                     className="w-full h-full"
                     style={{
@@ -561,7 +675,7 @@ const handleWeatherEnhancedSearch = useCallback(async () => {
                 </motion.p>
               </div>
 
-              {/* Enhanced Search Form */}
+              {/* Enhanced Search Form with Integrated Weather */}
               <motion.form 
                 onSubmit={handleSearch} 
                 initial={{ opacity: 0, y: 30 }}
@@ -569,10 +683,11 @@ const handleWeatherEnhancedSearch = useCallback(async () => {
                 transition={{ delay: 0.3 }}
                 className="max-w-6xl mx-auto"
               >
-                <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 p-8 shadow-2xl">
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-                    {/* Search Input */}
-                    <div className="md:col-span-2">
+                <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 p-6 md:p-8 shadow-2xl">
+                  {/* Main Search Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6 mb-6">
+                    {/* Search Input - Takes more space */}
+                    <div className="md:col-span-5">
                       <label className="block text-white/90 font-semibold mb-3 text-sm">
                         🔍 What are you looking for?
                       </label>
@@ -583,13 +698,13 @@ const handleWeatherEnhancedSearch = useCallback(async () => {
                           placeholder="Villages, experiences, activities..."
                           value={filters.search}
                           onChange={(e) => handleFilterChange('search', e.target.value)}
-                          className="w-full pl-12 pr-4 py-4 bg-white/20 border border-white/30 rounded-2xl focus:ring-2 focus:ring-white/50 focus:border-white/50 transition-all duration-300 text-white placeholder-white/60 backdrop-blur-sm"
+                          className="w-full pl-12 pr-4 py-3 md:py-4 bg-white/20 border border-white/30 rounded-2xl focus:ring-2 focus:ring-white/50 focus:border-white/50 transition-all duration-300 text-white placeholder-white/60 backdrop-blur-sm text-sm md:text-base"
                         />
                       </div>
                     </div>
 
                     {/* Location */}
-                    <div>
+                    <div className="md:col-span-4">
                       <label className="block text-white/90 font-semibold mb-3 text-sm">
                         📍 Location
                       </label>
@@ -600,13 +715,13 @@ const handleWeatherEnhancedSearch = useCallback(async () => {
                           placeholder="State, District, Village"
                           value={filters.location}
                           onChange={(e) => handleFilterChange('location', e.target.value)}
-                          className="w-full pl-12 pr-4 py-4 bg-white/20 border border-white/30 rounded-2xl focus:ring-2 focus:ring-white/50 focus:border-white/50 transition-all duration-300 text-white placeholder-white/60 backdrop-blur-sm"
+                          className="w-full pl-12 pr-4 py-3 md:py-4 bg-white/20 border border-white/30 rounded-2xl focus:ring-2 focus:ring-white/50 focus:border-white/50 transition-all duration-300 text-white placeholder-white/60 backdrop-blur-sm text-sm md:text-base"
                         />
                       </div>
                     </div>
 
                     {/* Guests */}
-                    <div>
+                    <div className="md:col-span-3">
                       <label className="block text-white/90 font-semibold mb-3 text-sm">
                         👥 Guests
                       </label>
@@ -615,7 +730,7 @@ const handleWeatherEnhancedSearch = useCallback(async () => {
                         <select
                           value={filters.guests}
                           onChange={(e) => handleFilterChange('guests', e.target.value)}
-                          className="w-full pl-12 pr-4 py-4 bg-white/20 border border-white/30 rounded-2xl focus:ring-2 focus:ring-white/50 focus:border-white/50 transition-all duration-300 text-white backdrop-blur-sm appearance-none"
+                          className="w-full pl-12 pr-4 py-3 md:py-4 bg-white/20 border border-white/30 rounded-2xl focus:ring-2 focus:ring-white/50 focus:border-white/50 transition-all duration-300 text-white backdrop-blur-sm appearance-none text-sm md:text-base"
                         >
                           {[1, 2, 3, 4, 5, 6, 7, 8].map(num => (
                             <option key={num} value={num} className="text-gray-900">
@@ -623,45 +738,153 @@ const handleWeatherEnhancedSearch = useCallback(async () => {
                             </option>
                           ))}
                         </select>
-                        <ChevronDownIcon className="absolute right-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white/60" />
+                        <ChevronDownIcon className="absolute right-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white/60 pointer-events-none" />
                       </div>
                     </div>
                   </div>
 
+                  {/* Integrated Weather Section */}
+                  {filters.location && (
+                    <div className="mb-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-white font-semibold text-lg flex items-center space-x-2">
+                          <span className="text-xl">🌤️</span>
+                          <span>Weather Insights for {filters.location}</span>
+                        </h3>
+                        
+                        <motion.button
+                          type="button"
+                          onClick={fetchWeatherRecommendations}
+                          disabled={weatherLoading}
+                          className="flex items-center space-x-2 px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-300/30 text-white rounded-xl transition-all duration-300 backdrop-blur-sm"
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                        >
+                          {weatherLoading ? (
+                            <motion.div
+                              animate={{ rotate: 360 }}
+                              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                            >
+                              <ArrowPathIcon className="w-5 h-5" />
+                            </motion.div>
+                          ) : (
+                            <CloudIcon className="w-5 h-5" />
+                          )}
+                          <span className="font-medium">Get Weather</span>
+                        </motion.button>
+                      </div>
+
+                     {/* Weather Display */}
+{weatherData && (
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    className="bg-white rounded-2xl border border-gray-200 p-6 shadow-lg"
+  >
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Current Weather */}
+      <div className="text-center">
+        <div className="text-6xl mb-2">
+          {getWeatherIcon(weatherData.current_weather?.main, weatherData.current_weather?.temperature)}
+        </div>
+        <div className="text-3xl font-bold text-gray-900 mb-1">
+          {weatherData.current_weather?.temperature}°C
+        </div>
+        <div className="text-gray-700 capitalize font-medium">
+          {weatherData.current_weather?.description}
+        </div>
+        <div className="text-sm text-gray-600 mt-2">
+          Feels like {weatherData.current_weather?.feels_like}°C
+        </div>
+      </div>
+      
+      {/* Weather Details */}
+      <div>
+        <h4 className="font-bold text-gray-900 mb-3 text-lg">🌡️ Details</h4>
+        <div className="space-y-2 text-gray-700">
+          <div className="flex items-center justify-between">
+            <span>Humidity:</span>
+            <span className="font-medium text-gray-900">{weatherData.current_weather?.humidity}%</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Wind:</span>
+            <span className="font-medium text-gray-900">{weatherData.current_weather?.wind_speed} m/s</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Visibility:</span>
+            <span className="font-medium text-gray-900">{weatherData.current_weather?.visibility} km</span>
+          </div>
+        </div>
+      </div>
+      
+      {/* Recommended Activities */}
+      <div>
+        <h4 className="font-bold text-gray-900 mb-3 text-lg flex items-center space-x-1">
+          <span>🎯</span>
+          <span>Perfect Today</span>
+        </h4>
+        <div className="space-y-2">
+          {weatherData.recommendations?.slice(0, 3).map((rec, i) => (
+            <div key={i} className="flex items-center space-x-2 text-sm text-gray-700">
+              <span className="text-lg">{getCategoryIcon(rec.category)}</span>
+              <span className="font-medium text-gray-900">{rec.activity}</span>
+            </div>
+          ))}
+          {weatherData.recommendations?.length > 3 && (
+            <motion.button
+              onClick={() => setShowWeatherModal(true)}
+              className="text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors underline"
+              whileHover={{ scale: 1.05 }}
+            >
+              +{weatherData.recommendations.length - 3} more activities →
+            </motion.button>
+          )}
+        </div>
+      </div>
+    </div>
+
+    {/* Weather Advice */}
+    {getWeatherAdvice(weatherData.current_weather) && (
+      <div className="mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+        <p className="text-emerald-800 font-medium text-center">
+          💡 {getWeatherAdvice(weatherData.current_weather).message}
+        </p>
+      </div>
+    )}
+  </motion.div>
+)}
+                    </div>
+                  )}
+
                   {/* Action Buttons */}
-                  <div className="flex flex-wrap items-center justify-between gap-4">
-                    <div className="flex items-center space-x-4">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    {/* Left Side - Filters */}
+                    <div className="flex flex-wrap items-center gap-3">
                       <motion.button
                         type="button"
                         onClick={() => setShowFilters(!showFilters)}
-                        className="flex items-center space-x-2 px-6 py-3 text-white hover:text-gray-200 bg-white/10 hover:bg-white/20 rounded-2xl transition-all duration-300 backdrop-blur-sm border border-white/20"
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
+                        className="flex items-center space-x-2 px-4 py-2.5 text-white hover:text-gray-200 bg-white/10 hover:bg-white/20 rounded-xl transition-all duration-300 backdrop-blur-sm border border-white/20 text-sm font-medium"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
                       >
-                        <AdjustmentsHorizontalIcon className="w-5 h-5" />
+                        <AdjustmentsHorizontalIcon className="w-4 h-4" />
                         <span>Advanced Filters</span>
                       </motion.button>
-
-                      <WeatherRecommendations
-                        location={filters.location}
-                        onRecommendationsUpdate={(data) => {
-                          setWeatherRecommendations(data);
-                        }}
-                      />
                     </div>
 
-                    <div className="flex space-x-4">
+                    {/* Right Side - Search Buttons */}
+                    <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
                       <motion.button
                         type="button"
                         onClick={handleWeatherEnhancedSearch}
                         disabled={!filters.location.trim()}
-                        className={`flex items-center space-x-2 px-8 py-4 rounded-2xl font-bold transition-all duration-300 ${
+                        className={`flex items-center justify-center space-x-2 px-6 py-3 rounded-xl font-bold transition-all duration-300 min-w-[180px] ${
                           !filters.location.trim()
                             ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
                             : 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white shadow-lg hover:shadow-xl transform hover:-translate-y-0.5'
                         }`}
-                        whileHover={filters.location.trim() ? { scale: 1.05 } : {}}
-                        whileTap={filters.location.trim() ? { scale: 0.95 } : {}}
+                        whileHover={filters.location.trim() ? { scale: 1.02 } : {}}
+                        whileTap={filters.location.trim() ? { scale: 0.98 } : {}}
                       >
                         <SparklesIcon className="w-5 h-5" />
                         <span>AI Smart Search</span>
@@ -669,11 +892,12 @@ const handleWeatherEnhancedSearch = useCallback(async () => {
                       
                       <motion.button 
                         type="submit" 
-                        className="bg-gradient-to-r from-green-400 to-emerald-500 hover:from-green-500 hover:to-emerald-600 text-white font-bold px-8 py-4 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5"
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
+                        className="flex items-center justify-center space-x-2 bg-gradient-to-r from-green-400 to-emerald-500 hover:from-green-500 hover:to-emerald-600 text-white font-bold px-6 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5 min-w-[180px]"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
                       >
-                        🔍 Discover Villages
+                        <MagnifyingGlassIcon className="w-5 h-5" />
+                        <span>Discover Villages</span>
                       </motion.button>
                     </div>
                   </div>
@@ -681,6 +905,85 @@ const handleWeatherEnhancedSearch = useCallback(async () => {
               </motion.form>
             </div>
           </div>
+
+          {/* Weather Modal */}
+          <AnimatePresence>
+            {showWeatherModal && weatherData && (
+              <div 
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+                onClick={() => setShowWeatherModal(false)}
+              >
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                  className="bg-white rounded-3xl max-w-4xl w-full max-h-[80vh] overflow-hidden shadow-2xl"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Modal Header */}
+                  <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-6 text-white">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-4">
+                        <div className="w-12 h-12 bg-white/20 backdrop-blur-lg rounded-2xl flex items-center justify-center">
+                          <span className="text-2xl">🌤️</span>
+                        </div>
+                        <div>
+                          <h2 className="text-2xl font-bold">Weather Activities</h2>
+                          <p className="text-blue-100">{weatherData.location}</p>
+                        </div>
+                      </div>
+                      
+                      <motion.button
+                        onClick={() => setShowWeatherModal(false)}
+                        className="p-2 hover:bg-white/20 rounded-xl transition-all duration-300"
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                      >
+                        <XMarkIcon className="w-6 h-6" />
+                      </motion.button>
+                    </div>
+                  </div>
+
+                  {/* Modal Content */}
+                  <div className="p-6 overflow-y-auto max-h-[calc(80vh-120px)]">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {weatherData.recommendations?.map((rec, index) => (
+                        <motion.div
+                          key={index}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.1 }}
+                          className="bg-gradient-to-br from-gray-50 to-blue-50 border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-all duration-300"
+                        >
+                          <div className="flex items-start space-x-4">
+                            <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-emerald-100 rounded-2xl flex items-center justify-center">
+                              <span className="text-2xl">{getCategoryIcon(rec.category)}</span>
+                            </div>
+                            
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-3 mb-2">
+                                <h4 className="text-lg font-bold text-gray-900">{rec.activity}</h4>
+                                <span className={`px-2 py-1 rounded-full text-xs font-bold border ${getPriorityBadge(rec.priority)}`}>
+                                  {rec.priority}
+                                </span>
+                              </div>
+                              
+                              <p className="text-gray-600 mb-3 leading-relaxed">{rec.reason}</p>
+                              
+                              <div className="flex items-center space-x-2 text-sm text-gray-500 bg-gray-100 rounded-lg px-3 py-2">
+                                <ClockIcon className="w-4 h-4" />
+                                <span className="font-medium">{rec.best_time}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
 
           {/* Advanced Filters Panel */}
           <AnimatePresence>
@@ -829,28 +1132,25 @@ const handleWeatherEnhancedSearch = useCallback(async () => {
                     </div>
 
                     {/* Weather Insights */}
-                    {weatherRecommendations?.current_weather && (
+                    {weatherData?.current_weather && (
                       <div className="mb-8 p-6 bg-white/60 backdrop-blur-sm rounded-2xl border border-white/50">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                           <div className="text-center">
                             <div className="text-4xl font-bold text-gray-900 mb-2">
-                              {weatherRecommendations.current_weather.temperature}°C
+                              {weatherData.current_weather.temperature}°C
                             </div>
                             <div className="text-lg text-gray-600 capitalize font-medium">
-                              {weatherRecommendations.current_weather.description}
+                              {weatherData.current_weather.description}
                             </div>
                             <div className="text-6xl mt-2">
-                              {weatherRecommendations.current_weather.main === 'Clear' && '☀️'}
-                              {weatherRecommendations.current_weather.main === 'Clouds' && '☁️'}
-                              {weatherRecommendations.current_weather.main === 'Rain' && '🌧️'}
-                              {!['Clear', 'Clouds', 'Rain'].includes(weatherRecommendations.current_weather.main) && '🌤️'}
+                              {getWeatherIcon(weatherData.current_weather.main, weatherData.current_weather.temperature)}
                             </div>
                           </div>
                           
                           <div>
                             <h4 className="font-bold text-gray-900 mb-3 text-lg">🎯 Best Activities</h4>
                             <div className="space-y-2">
-                              {weatherRecommendations.search_insights?.best_activities?.slice(0, 3).map((activity, i) => (
+                              {weatherData.search_insights?.best_activities?.slice(0, 3).map((activity, i) => (
                                 <div key={i} className="flex items-center space-x-2 text-gray-700">
                                   <span className="w-2 h-2 bg-green-500 rounded-full"></span>
                                   <span className="font-medium">{activity}</span>
@@ -862,7 +1162,7 @@ const handleWeatherEnhancedSearch = useCallback(async () => {
                           <div>
                             <h4 className="font-bold text-gray-900 mb-3 text-lg">📈 Weather Trend</h4>
                             <p className="text-gray-700 leading-relaxed">
-                              {weatherRecommendations.search_insights?.weather_trend}
+                              {weatherData.search_insights?.weather_trend}
                             </p>
                           </div>
                         </div>
@@ -982,48 +1282,48 @@ const handleWeatherEnhancedSearch = useCallback(async () => {
                       })}
                       
                       <motion.button
-                        onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
-                        disabled={pagination.page === pagination.total_pages}
-                        className="px-6 py-3 text-sm border border-gray-300 rounded-xl hover:bg-gray-50 disabled:opacity-50 font-medium transition-all duration-300"
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                      >
-                        Next →
-                      </motion.button>
-                    </div>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="text-center py-20">
-                <motion.div
-                  initial={{ opacity: 0, y: 30 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="max-w-md mx-auto"
-                >
-                  <div className="w-32 h-32 bg-gradient-to-br from-gray-200 to-gray-300 rounded-full flex items-center justify-center mx-auto mb-8">
-                    <MagnifyingGlassIcon className="w-16 h-16 text-gray-400" />
-                  </div>
-                  <h3 className="text-2xl font-bold text-gray-900 mb-4">No villages found</h3>
-                  <p className="text-gray-600 mb-8 leading-relaxed">
-                    We couldn't find any properties matching your criteria. Try adjusting your search or filters.
-                  </p>
-                  <motion.button 
-                    onClick={clearFilters} 
-                    className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-8 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    🔄 Clear All Filters
-                  </motion.button>
-                </motion.div>
-              </div>
-            )}
-          </div>
-        </div>
-      </AppLayout>
-    </Providers>
-  );
+                       onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+                       disabled={pagination.page === pagination.total_pages}
+                       className="px-6 py-3 text-sm border border-gray-300 rounded-xl hover:bg-gray-50 disabled:opacity-50 font-medium transition-all duration-300"
+                       whileHover={{ scale: 1.05 }}
+                       whileTap={{ scale: 0.95 }}
+                     >
+                       Next →
+                     </motion.button>
+                   </div>
+                 </div>
+               )}
+             </>
+           ) : (
+             <div className="text-center py-20">
+               <motion.div
+                 initial={{ opacity: 0, y: 30 }}
+                 animate={{ opacity: 1, y: 0 }}
+                 className="max-w-md mx-auto"
+               >
+                 <div className="w-32 h-32 bg-gradient-to-br from-gray-200 to-gray-300 rounded-full flex items-center justify-center mx-auto mb-8">
+                   <MagnifyingGlassIcon className="w-16 h-16 text-gray-400" />
+                 </div>
+                 <h3 className="text-2xl font-bold text-gray-900 mb-4">No villages found</h3>
+                 <p className="text-gray-600 mb-8 leading-relaxed">
+                   We couldn't find any properties matching your criteria. Try adjusting your search or filters.
+                 </p>
+                 <motion.button 
+                   onClick={clearFilters} 
+                   className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-8 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
+                   whileHover={{ scale: 1.05 }}
+                   whileTap={{ scale: 0.95 }}
+                 >
+                   🔄 Clear All Filters
+                 </motion.button>
+               </motion.div>
+             </div>
+           )}
+         </div>
+       </div>
+     </AppLayout>
+   </Providers>
+ );
 };
 
 export default ListingsPage;

@@ -105,3 +105,18 @@
     transform: rotate(360deg);
   }
 }
+
+/* Add to your global CSS file */
+.modal-open {
+  overflow: hidden;
+}
+
+/* Weather modal specific styles */
+.weather-modal {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  z-index: 99999 !important;
+}
