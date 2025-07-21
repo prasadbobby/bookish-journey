@@ -87,6 +87,15 @@ const createStreamingRequest = async (endpoint, data) => {
   return response;
 };
 
+// lib/utils.js
+export const formatCurrency = (amount) => {
+  return `₹${amount?.toLocaleString('en-IN') || '0'}`;
+};
+
+export const getImagePlaceholder = (width = 400, height = 240, title = 'Village Stay') => {
+  // Return a simple placeholder image path
+  return '/images/placeholder-village.jpg';
+};
 // Auth API
 export const authAPI = {
   register: (userData) => api.post('/api/auth/register', userData),

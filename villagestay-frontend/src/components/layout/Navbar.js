@@ -12,7 +12,7 @@ import {
   MagnifyingGlassIcon,
   ChatBubbleLeftRightIcon,
   SparklesIcon,
-  ArrowRightOnRectangleIcon,
+  ArrowRightOnRectangleIcon,  
   Cog6ToothIcon,
   PlusIcon,
   CalendarDaysIcon,
