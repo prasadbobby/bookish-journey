@@ -17,6 +17,7 @@ import {
 import { listingsAPI } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
+import AIContentGenerator from '@/components/ai/AIContentGenerator';
 
 const CreateListingPage = () => {
   const { user, isHost } = useAuth();
@@ -246,19 +247,59 @@ const CreateListingPage = () => {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Description *
-                  </label>
-                  <textarea
-                    rows={6}
-                    required
-                    value={formData.description}
-                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="Describe your property, what makes it special, and the experience guests can expect..."
-                    className="input-field resize-none"
-                  />
-                </div>
+               <div>
+  <div className="flex items-center justify-between mb-2">
+    <label className="block text-sm font-medium text-gray-700">
+      Description *
+    </label>
+    <AIContentGenerator
+      title={formData.title}
+      location={formData.location}
+      price_per_night={formData.price_per_night}
+      property_type={formData.property_type}
+      onContentGenerated={(description) => {
+        setFormData(prev => ({ ...prev, description }));
+      }}
+      onSuggestionsGenerated={(suggestions) => {
+        // Auto-populate amenities from AI suggestions
+        if (suggestions.suggested_amenities) {
+          setFormData(prev => ({
+            ...prev,
+            amenities: [...new Set([...prev.amenities, ...suggestions.suggested_amenities])]
+          }));
+        }
+        
+        // Auto-populate house rules
+        if (suggestions.house_rules) {
+          setFormData(prev => ({
+            ...prev,
+            house_rules: suggestions.house_rules
+          }));
+        }
+        
+        // Auto-populate sustainability features
+        if (suggestions.sustainability_features) {
+          setFormData(prev => ({
+            ...prev,
+            sustainability_features: suggestions.sustainability_features
+          }));
+        }
+      }}
+    />
+  </div>
+  <textarea
+    rows={6}
+    required
+    value={formData.description}
+    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+    placeholder="Describe your property, what makes it special, and the experience guests can expect... or use AI to generate compelling content!"
+    className="input-field resize-none"
+  />
+  <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
+    <span>Min 50 characters recommended</span>
+    <span>{formData.description.length} characters</span>
+  </div>
+</div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>

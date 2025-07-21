@@ -19,6 +19,7 @@ import {
   ShieldCheckIcon,
   SparklesIcon
 } from '@heroicons/react/24/outline';
+import PaymentModal from '@/components/payment/PaymentModal';
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
 import Providers from '@/components/providers/Providers';
 import AppLayout from '@/components/layout/AppLayout';
@@ -44,6 +45,9 @@ const ListingDetailPage = () => {
     special_requests: ''
   });
   const [bookingLoading, setBookingLoading] = useState(false);
+const [showPaymentModal, setShowPaymentModal] = useState(false);
+const [pendingBooking, setPendingBooking] = useState(null);
+
 
   useEffect(() => {
     if (params.id) {
@@ -74,36 +78,99 @@ const ListingDetailPage = () => {
     }
   };
 
-  const handleBooking = async (e) => {
-    e.preventDefault();
+// Update the handleBooking function to pass correct data
+const handleBooking = async (e) => {
+  e.preventDefault();
+  
+  if (!isAuthenticated) {
+    toast.error('Please login to make a booking');
+    router.push('/auth/login');
+    return;
+  }
+
+  if (!isTourist) {
+    toast.error('Only tourists can make bookings');
+    return;
+  }
+
+  setBookingLoading(true);
+  try {
+    const response = await bookingsAPI.create({
+      listing_id: params.id,
+      ...bookingData
+    });
+
+    // Calculate the values for payment modal
+    const nights = calculateNights(bookingData.check_in, bookingData.check_out);
+    const baseAmount = listing.price_per_night * nights;
+    const platformFee = baseAmount * 0.05;
+    const totalAmount = baseAmount + platformFee;
+
+    // Set pending booking with correct amounts
+    setPendingBooking({
+      booking_id: response.data.booking_id,
+      listing_title: listing.title,
+      check_in: bookingData.check_in,
+      check_out: bookingData.check_out,
+      guests: bookingData.guests,
+      nights: nights,
+      base_amount: baseAmount,
+      platform_fee: platformFee,
+      total_amount: totalAmount,
+      booking_reference: response.data.booking_reference
+    });
+    setShowPaymentModal(true);
+
+  } catch (error) {
+    const message = error.response?.data?.error || 'Failed to create booking';
+    toast.error(message);
+  } finally {
+    setBookingLoading(false);
+  }
+};
+// Add payment success handler
+// Update the payment success handler to accept payment details
+const handlePaymentSuccess = async (paymentDetails) => {
+  try {
+    console.log('Completing payment for booking:', pendingBooking.booking_id);
+    console.log('Payment details:', paymentDetails);
     
-    if (!isAuthenticated) {
-      toast.error('Please login to make a booking');
-      router.push('/auth/login');
-      return;
+    // Complete the payment with the details from the modal
+    const response = await bookingsAPI.completePayment(pendingBooking.booking_id, {
+      payment_method: paymentDetails.method,
+      payment_signature: paymentDetails.signature,
+      transaction_id: paymentDetails.transaction_id,
+      upi_id: paymentDetails.upi_id,
+      card_last_four: paymentDetails.card_last_four
+    });
+    
+    console.log('Payment completion response:', response);
+    
+    setShowPaymentModal(false);
+    
+    toast.success('Booking confirmed! Redirecting to booking details...');
+    
+    // Redirect after a short delay
+    setTimeout(() => {
+      router.push(`/bookings/${pendingBooking.booking_id}`);
+    }, 1500);
+    
+  } catch (error) {
+    console.error('Payment completion error:', error);
+    console.error('Error details:', error.response?.data);
+    
+    // More specific error handling
+    if (error.response?.status === 404) {
+      toast.error('Booking not found. Please try again.');
+    } else if (error.response?.status === 400) {
+      toast.error('Payment verification failed. Please contact support.');
+    } else {
+      toast.error('Failed to confirm booking. Please contact support.');
     }
-
-    if (!isTourist) {
-      toast.error('Only tourists can make bookings');
-      return;
-    }
-
-    setBookingLoading(true);
-    try {
-      const response = await bookingsAPI.create({
-        listing_id: params.id,
-        ...bookingData
-      });
-
-      toast.success('Booking created successfully!');
-      router.push(`/tourist/bookings/${response.data.booking_id}`);
-    } catch (error) {
-      const message = error.response?.data?.error || 'Failed to create booking';
-      toast.error(message);
-    } finally {
-      setBookingLoading(false);
-    }
-  };
+  } finally {
+    setPendingBooking(null);
+  }
+};
 
   const handleShare = () => {
     if (navigator.share) {
@@ -615,6 +682,16 @@ const ListingDetailPage = () => {
             </div>
           </div>
         </div>
+        {showPaymentModal && pendingBooking && (
+  <PaymentModal
+    booking={pendingBooking}
+    onClose={() => {
+      setShowPaymentModal(false);
+      setPendingBooking(null);
+    }}
+    onSuccess={handlePaymentSuccess}
+  />
+)}
       </AppLayout>
     </Providers>
   );

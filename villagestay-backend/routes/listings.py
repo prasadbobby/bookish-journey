@@ -309,28 +309,40 @@ def delete_listing(listing_id):
 def search_listings():
     try:
         query = request.args.get('q', '')
-        location = request.args.get('location')
+        location = request.args.get('location', '')
         
-        if not query and not location:
-            return jsonify({"error": "Search query or location is required"}), 400
-        
-        # Build search query
+        # Build comprehensive search query
         search_query = {"is_active": True, "is_approved": True}
         
-        if query:
-            search_query["$or"] = [
-                {"title": {"$regex": query, "$options": "i"}},
-                {"description": {"$regex": query, "$options": "i"}},
-                {"location": {"$regex": query, "$options": "i"}},
-                {"amenities": {"$in": [query]}},
-                {"property_type": {"$regex": query, "$options": "i"}}
-            ]
+        if query or location:
+            or_conditions = []
+            
+            if query:
+                # Split query into words for better matching
+                query_words = query.lower().split()
+                word_conditions = []
+                
+                for word in query_words:
+                    word_conditions.extend([
+                        {"title": {"$regex": word, "$options": "i"}},
+                        {"description": {"$regex": word, "$options": "i"}},
+                        {"location": {"$regex": word, "$options": "i"}},
+                        {"property_type": {"$regex": word, "$options": "i"}},
+                        {"amenities": {"$elemMatch": {"$regex": word, "$options": "i"}}}
+                    ])
+                
+                or_conditions.extend(word_conditions)
+            
+            if location:
+                location_words = location.lower().split()
+                for word in location_words:
+                    or_conditions.append({"location": {"$regex": word, "$options": "i"}})
+            
+            if or_conditions:
+                search_query["$or"] = or_conditions
         
-        if location:
-            search_query["location"] = {"$regex": location, "$options": "i"}
-        
-        # Execute search
-        listings = list(mongo.db.listings.find(search_query).limit(50))
+        # Execute search with larger limit for better results
+        listings = list(mongo.db.listings.find(search_query).limit(100))
         
         # Format results
         formatted_listings = []
@@ -344,10 +356,12 @@ def search_listings():
                 "location": listing['location'],
                 "price_per_night": listing['price_per_night'],
                 "property_type": listing['property_type'],
-                "images": listing['images'][:1],  # Only first image
+                "images": listing['images'],
                 "coordinates": listing['coordinates'],
                 "rating": listing.get('rating', 0),
                 "review_count": listing.get('review_count', 0),
+                "amenities": listing.get('amenities', []),
+                "sustainability_features": listing.get('sustainability_features', []),
                 "host": {
                     "id": str(host['_id']),
                     "full_name": host['full_name']
@@ -358,11 +372,15 @@ def search_listings():
         
         return jsonify({
             "listings": formatted_listings,
-            "total_found": len(formatted_listings)
+            "total_found": len(formatted_listings),
+            "search_query": query,
+            "location_query": location
         }), 200
         
     except Exception as e:
+        print(f"Search error: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
 
 @listings_bp.route('/<listing_id>/availability', methods=['GET'])
 def check_listing_availability(listing_id):

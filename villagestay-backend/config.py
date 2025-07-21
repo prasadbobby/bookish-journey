@@ -11,6 +11,7 @@ class Config:
     GOOGLE_MAPS_API_KEY = os.environ.get('GOOGLE_MAPS_API_KEY')
     UPLOAD_FOLDER = 'uploads'
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
+    OPENWEATHER_API_KEY = os.environ.get('OPENWEATHER_API_KEY')
     
     # Google Cloud Speech-to-Text Configuration
     GOOGLE_CLOUD_PROJECT_ID = os.environ.get('GOOGLE_CLOUD_PROJECT_ID')

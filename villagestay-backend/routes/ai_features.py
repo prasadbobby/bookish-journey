@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify, Response, stream_template
+from utils.weather_utils import weather_service, get_weather_based_recommendations
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from database import mongo
 from utils.ai_utils import (
@@ -380,6 +381,157 @@ def create_listing_from_voice():
     except Exception as e:
         print(f"❌ Create listing error: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+
+@ai_features_bp.route('/generate-listing-content', methods=['POST'])
+@jwt_required()
+def generate_listing_content_ai():
+    try:
+        user_id = get_jwt_identity()
+        data = request.get_json()
+        
+        # Verify user is a host
+        user = mongo.db.users.find_one({"_id": ObjectId(user_id)})
+        if not user or user['user_type'] != 'host':
+            return jsonify({"error": "Only hosts can generate listing content"}), 403
+        
+        # Get input data
+        title = data.get('title', '').strip()
+        location = data.get('location', '').strip()
+        price_per_night = data.get('price_per_night', '')
+        property_type = data.get('property_type', 'homestay')
+        
+        # Validation
+        if not title:
+            return jsonify({"error": "Title is required for AI content generation"}), 400
+        
+        if not location:
+            return jsonify({"error": "Location is required for AI content generation"}), 400
+        
+        # Generate AI content using Gemini
+        content_prompt = f"""
+        You are an expert travel content writer specializing in authentic rural and village tourism in India. 
+        Create compelling, culturally-rich listing content that attracts travelers seeking genuine experiences.
+
+        Property Details:
+        - Title: {title}
+        - Location: {location}
+        - Property Type: {property_type}
+        - Price per Night: ₹{price_per_night}
+
+        Generate a comprehensive listing description (200-250 words) that includes:
+
+        1. **Opening Hook**: Start with what makes this place special
+        2. **Cultural Context**: Highlight local traditions, customs, and village life
+        3. **Accommodation Details**: Describe the property authentically
+        4. **Experiences**: What guests can do (farming, cooking, festivals, crafts)
+        5. **Local Highlights**: Nearby attractions, natural beauty, or cultural sites
+        6. **Sustainability**: Mention eco-friendly or community-focused aspects
+        7. **Emotional Connection**: How guests will feel and what memories they'll create
+
+        Writing Style:
+        - Warm, inviting, and authentic tone
+        - Use sensory details (sounds, smells, textures)
+        - Include Hindi/local terms with explanations where appropriate
+        - Focus on experiences over amenities
+        - Emphasize cultural immersion and learning
+
+        Create content that makes travelers feel excited about experiencing authentic village life.
+        Make it feel personal and genuine, not marketing-heavy.
+
+        Return only the description text, no formatting or extra labels.
+        """
+
+        print(f"🤖 Generating AI content for listing: {title} in {location}")
+        
+        from utils.ai_utils import call_gemini_api
+        ai_description = call_gemini_api(content_prompt)
+        
+        # Generate additional content suggestions
+        suggestions_prompt = f"""
+        Based on the property "{title}" in {location}, suggest:
+
+        1. 5 relevant amenities for a {property_type}
+        2. 3 house rules appropriate for rural/village stays
+        3. 3 sustainability features typical for this location
+        4. 2 unique selling points that differentiate this property
+
+        Format as JSON:
+        {{
+            "suggested_amenities": ["amenity1", "amenity2", "amenity3", "amenity4", "amenity5"],
+            "house_rules": ["rule1", "rule2", "rule3"],
+            "sustainability_features": ["feature1", "feature2", "feature3"],
+            "unique_selling_points": ["point1", "point2"]
+        }}
+        """
+        
+        try:
+            suggestions_response = call_gemini_api(suggestions_prompt)
+            # Try to parse JSON from response
+            import re
+            json_match = re.search(r'\{.*\}', suggestions_response, re.DOTALL)
+            if json_match:
+                suggestions = json.loads(json_match.group())
+            else:
+                suggestions = generate_fallback_suggestions(property_type, location)
+        except:
+            suggestions = generate_fallback_suggestions(property_type, location)
+        
+        # Log successful generation
+        generation_record = {
+            "host_id": ObjectId(user_id),
+            "title": title,
+            "location": location,
+            "property_type": property_type,
+            "generated_description": ai_description,
+            "suggestions": suggestions,
+            "created_at": datetime.utcnow(),
+            "generation_type": "listing_content"
+        }
+        
+        mongo.db.ai_generations.insert_one(generation_record)
+        
+        return jsonify({
+            "message": "AI content generated successfully",
+            "generated_description": ai_description,
+            "suggestions": suggestions,
+            "word_count": len(ai_description.split()),
+            "generation_id": str(generation_record.get("_id"))
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ AI content generation error: {str(e)}")
+        return jsonify({"error": f"Failed to generate content: {str(e)}"}), 500
+
+def generate_fallback_suggestions(property_type, location):
+    """Generate fallback suggestions if AI fails"""
+    
+    base_amenities = {
+        'homestay': ['Home-cooked meals', 'Local guide', 'Wi-Fi', 'Traditional activities', 'Cultural experiences'],
+        'farmstay': ['Farm tours', 'Organic meals', 'Animal interaction', 'Harvesting experience', 'Traditional cooking'],
+        'heritage_home': ['Historical tours', 'Traditional architecture', 'Cultural performances', 'Heritage walks', 'Antique collections'],
+        'eco_lodge': ['Nature walks', 'Bird watching', 'Organic food', 'Solar power', 'Waste management'],
+        'village_house': ['Village tours', 'Local interactions', 'Traditional crafts', 'Folk performances', 'Rural lifestyle'],
+        'cottage': ['Scenic views', 'Private garden', 'Peaceful environment', 'Nature proximity', 'Rural tranquility']
+    }
+    
+    return {
+        "suggested_amenities": base_amenities.get(property_type, base_amenities['homestay']),
+        "house_rules": [
+            "Respect local customs and traditions",
+            "No smoking inside the property",
+            "Maintain cleanliness and tidiness"
+        ],
+        "sustainability_features": [
+            "Solar power usage",
+            "Rainwater harvesting",
+            "Organic farming practices"
+        ],
+        "unique_selling_points": [
+            "Authentic village lifestyle experience",
+            "Direct interaction with local community"
+        ]
+    }
 
 # ============ FEATURE 3: AI CULTURAL CONCIERGE ============
 
@@ -1516,6 +1668,238 @@ def get_location_cultural_insights(location):
 
 
 
+@ai_features_bp.route('/weather-recommendations', methods=['POST'])
+def get_weather_recommendations():
+    try:
+        data = request.get_json()
+        location = data.get('location', '')
+        
+        if not location:
+            return jsonify({"error": "Location is required"}), 400
+        
+        print(f"🌤️ Getting weather recommendations for: {location}")
+        
+        # Get current weather
+        current_weather = weather_service.get_current_weather(location)
+        if not current_weather:
+            return jsonify({"error": "Unable to fetch weather data for this location"}), 400
+        
+        # Get forecast
+        forecast_data = weather_service.get_weather_forecast(location, days=3)
+        
+        # Generate recommendations
+        recommendations = get_weather_based_recommendations(location, current_weather, forecast_data)
+        
+        return jsonify({
+            "location": location,
+            "current_weather": current_weather,
+            "forecast": forecast_data['forecast'][:24] if forecast_data else [],  # Next 3 days
+            "recommendations": recommendations,
+            "generated_at": datetime.utcnow().isoformat()
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Weather recommendations error: {str(e)}")
+        return jsonify({"error": f"Failed to get weather recommendations: {str(e)}"}), 500
+
+@ai_features_bp.route('/weather-enhanced-search', methods=['POST'])
+def weather_enhanced_search():
+    try:
+        data = request.get_json()
+        
+        # Search parameters
+        location = data.get('location', '')
+        check_in = data.get('check_in')
+        check_out = data.get('check_out')
+        preferences = data.get('preferences', [])  # ['outdoor', 'cultural', 'farming', etc.]
+        
+        if not location:
+            return jsonify({"error": "Location is required"}), 400
+        
+        print(f"🔍 Weather-enhanced search for: {location}")
+        
+        # Get weather data
+        current_weather = weather_service.get_current_weather(location)
+        forecast_data = weather_service.get_weather_forecast(location, days=7)
+        
+        if not current_weather:
+            return jsonify({"error": "Unable to fetch weather data"}), 400
+        
+        # Get weather recommendations
+        recommendations = get_weather_based_recommendations(location, current_weather, forecast_data)
+        
+        # Filter recommendations based on user preferences
+        if preferences:
+            filtered_recommendations = [
+                rec for rec in recommendations 
+                if rec['category'] in preferences
+            ]
+            if filtered_recommendations:
+                recommendations = filtered_recommendations
+        
+        # Get listings for the location
+        from database import mongo
+        listings_query = {
+            "location": {"$regex": location, "$options": "i"},
+            "is_active": True,
+            "is_approved": True
+        }
+        
+        listings = list(mongo.db.listings.find(listings_query).limit(20))
+        
+        # Score listings based on weather suitability
+        scored_listings = []
+        for listing in listings:
+            score = calculate_weather_suitability_score(listing, current_weather, recommendations)
+            
+            formatted_listing = {
+                "id": str(listing['_id']),
+                "title": listing['title'],
+                "location": listing['location'],
+                "price_per_night": listing['price_per_night'],
+                "property_type": listing['property_type'],
+                "amenities": listing.get('amenities', []),
+                "images": listing.get('images', []),
+                "rating": listing.get('rating', 0),
+                "weather_suitability_score": score,
+                "suitable_activities": get_suitable_activities_for_listing(listing, recommendations)
+            }
+            scored_listings.append(formatted_listing)
+        
+        # Sort by weather suitability
+        scored_listings.sort(key=lambda x: x['weather_suitability_score'], reverse=True)
+        
+        return jsonify({
+            "location": location,
+            "current_weather": current_weather,
+            "recommendations": recommendations,
+            "weather_enhanced_listings": scored_listings,
+            "search_insights": {
+                "weather_summary": f"Current: {current_weather['description']}, {current_weather['temperature']}°C",
+                "best_activities": [rec['activity'] for rec in recommendations[:3]],
+                "weather_trend": analyze_weather_trend(forecast_data)
+            }
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Weather-enhanced search error: {str(e)}")
+        return jsonify({"error": f"Search failed: {str(e)}"}), 500
+
+def calculate_weather_suitability_score(listing, current_weather, recommendations):
+    """Calculate how suitable a listing is for current weather"""
+    score = 50  # Base score
+    
+    amenities = [amenity.lower() for amenity in listing.get('amenities', [])]
+    property_type = listing.get('property_type', '').lower()
+    
+    # Weather-based scoring
+    temp = current_weather['temperature']
+    main_weather = current_weather['main'].lower()
+    
+    # Temperature scoring
+    if temp > 35:  # Very hot
+        if any(amenity in amenities for amenity in ['air conditioning', 'fan', 'swimming pool']):
+            score += 20
+        if any(amenity in amenities for amenity in ['indoor activities', 'cooking class']):
+            score += 15
+    elif temp < 10:  # Cold
+        if any(amenity in amenities for amenity in ['fireplace', 'heater', 'bonfire']):
+            score += 20
+        if 'hot water' in amenities:
+            score += 10
+    else:  # Comfortable temperature
+        if any(amenity in amenities for amenity in ['outdoor activities', 'cycling', 'trekking']):
+            score += 15
+    
+    # Weather condition scoring
+    if 'rain' in main_weather:
+        if any(amenity in amenities for amenity in ['indoor games', 'library', 'handicraft']):
+            score += 15
+        if property_type in ['heritage_home', 'cottage']:
+            score += 10
+    elif 'clear' in main_weather:
+        if any(amenity in amenities for amenity in ['garden', 'terrace', 'outdoor seating']):
+            score += 15
+        if property_type in ['farmstay', 'eco_lodge']:
+            score += 10
+    
+    # Activity alignment scoring
+    for rec in recommendations:
+        category = rec['category']
+        if category == 'farming' and 'farmstay' in property_type:
+            score += 10
+        elif category == 'cultural' and any(amenity in amenities for amenity in ['cultural performances', 'traditional dance']):
+            score += 10
+        elif category == 'outdoor' and any(amenity in amenities for amenity in ['nature walks', 'trekking', 'cycling']):
+            score += 10
+    
+    return min(100, max(0, score))
+
+def get_suitable_activities_for_listing(listing, recommendations):
+    """Get activities that are suitable for this listing given current weather"""
+    amenities = [amenity.lower() for amenity in listing.get('amenities', [])]
+    property_type = listing.get('property_type', '').lower()
+    
+    suitable_activities = []
+    
+    for rec in recommendations:
+        is_suitable = False
+        
+        # Check if listing supports this activity
+        category = rec['category']
+        activity = rec['activity'].lower()
+        
+        if category == 'farming' and ('farm' in property_type or any('farm' in amenity for amenity in amenities)):
+            is_suitable = True
+        elif category == 'cultural' and any(cultural_term in amenity for amenity in amenities for cultural_term in ['cultural', 'traditional', 'dance', 'music']):
+            is_suitable = True
+        elif category == 'outdoor' and any(outdoor_term in amenity for amenity in amenities for outdoor_term in ['outdoor', 'cycling', 'trekking', 'nature']):
+            is_suitable = True
+        elif category == 'craft' and any(craft_term in amenity for amenity in amenities for craft_term in ['handicraft', 'pottery', 'weaving']):
+            is_suitable = True
+        elif category == 'wellness' and any(wellness_term in amenity for amenity in amenities for wellness_term in ['yoga', 'meditation', 'spa']):
+            is_suitable = True
+        elif 'cooking' in activity and any(cooking_term in amenity for amenity in amenities for cooking_term in ['cooking', 'kitchen', 'meal']):
+            is_suitable = True
+        
+        if is_suitable:
+            suitable_activities.append({
+                'activity': rec['activity'],
+                'best_time': rec['best_time'],
+                'reason': rec['reason']
+            })
+    
+    return suitable_activities[:5]  # Top 5 suitable activities
+
+def analyze_weather_trend(forecast_data):
+    """Analyze weather trend for next few days"""
+    if not forecast_data or not forecast_data.get('forecast'):
+        return "Weather data unavailable"
+    
+    forecasts = forecast_data['forecast'][:24]  # Next 3 days (8 forecasts per day)
+    
+    # Analyze temperature trend
+    temps = [f['temperature'] for f in forecasts]
+    avg_temp = sum(temps) / len(temps)
+    
+    # Analyze rain probability
+    rain_forecasts = [f for f in forecasts if f['rain'] > 0]
+    rain_probability = len(rain_forecasts) / len(forecasts) * 100
+    
+    # Analyze weather conditions
+    weather_conditions = [f['main'].lower() for f in forecasts]
+    most_common_weather = max(set(weather_conditions), key=weather_conditions.count)
+    
+    trend = f"Expect {most_common_weather} weather with average temperature {avg_temp:.1f}°C"
+    
+    if rain_probability > 50:
+        trend += f". High chance of rain ({rain_probability:.0f}%)"
+    elif rain_probability > 20:
+        trend += f". Some rain expected ({rain_probability:.0f}%)"
+    else:
+        trend += ". Mostly dry weather expected"
+    
+    return trend
 
 
 # ============ AI IMAGE ANALYSIS ROUTES ============

@@ -139,6 +139,7 @@ def create_booking():
         print(f"Booking creation error: {str(e)}")
         return jsonify({"error": "Failed to create booking. Please try again."}), 500
 
+
 @bookings_bp.route('/<booking_id>/payment', methods=['POST'])
 @jwt_required()
 def complete_payment(booking_id):
@@ -146,50 +147,93 @@ def complete_payment(booking_id):
         user_id = get_jwt_identity()
         data = request.get_json()
         
+        print(f"Payment completion request for booking: {booking_id}")
+        print(f"User ID: {user_id}")
+        print(f"Payment data: {data}")
+        
         # Verify booking ownership
         booking = mongo.db.bookings.find_one({"_id": ObjectId(booking_id)})
         if not booking:
+            print(f"Booking not found: {booking_id}")
             return jsonify({"error": "Booking not found"}), 404
         
+        print(f"Found booking: {booking.get('booking_reference')}")
+        print(f"Booking tourist_id: {booking.get('tourist_id')}")
+        print(f"Current user_id: {user_id}")
+        
         if str(booking['tourist_id']) != user_id:
+            print("Unauthorized access attempt")
             return jsonify({"error": "Unauthorized"}), 403
         
-        # Verify payment
-        payment_verification = verify_payment(
-            booking['payment_id'],
-            data.get('payment_signature'),
-            data.get('payment_method')
-        )
+        # Check if booking is still pending
+        if booking['status'] != 'pending':
+            print(f"Booking status is not pending: {booking['status']}")
+            return jsonify({"error": f"Booking is not in pending status. Current status: {booking['status']}"}), 400
+        
+        # Get payment details
+        payment_method = data.get('payment_method', 'upi')
+        payment_signature = data.get('payment_signature', 'mock_signature')
+        transaction_id = data.get('transaction_id', f"txn_{booking_id}")
+        
+        print(f"Processing payment with method: {payment_method}")
+        
+        # Mock payment verification - always successful for demo
+        payment_verification = {
+            'success': True,
+            'payment_id': booking.get('payment_id', f"pay_{booking_id}"),
+            'payment_method': payment_method,
+            'transaction_id': transaction_id,
+            'verified_at': datetime.utcnow().isoformat()
+        }
         
         if not payment_verification['success']:
             return jsonify({"error": "Payment verification failed"}), 400
         
         # Update booking status
-        mongo.db.bookings.update_one(
+        update_data = {
+            "payment_status": "paid",
+            "status": "confirmed",
+            "payment_completed_at": datetime.utcnow(),
+            "payment_method": payment_method,
+            "payment_signature": payment_signature,
+            "transaction_id": transaction_id,
+            "updated_at": datetime.utcnow()
+        }
+        
+        print(f"Updating booking with data: {update_data}")
+        
+        update_result = mongo.db.bookings.update_one(
             {"_id": ObjectId(booking_id)},
-            {
-                "$set": {
-                    "payment_status": "paid",
-                    "status": "confirmed",
-                    "payment_completed_at": datetime.utcnow(),
-                    "updated_at": datetime.utcnow()
-                }
-            }
+            {"$set": update_data}
         )
         
-        # Block dates in listing availability
-        block_dates(booking['listing_id'], booking['check_in'], booking['check_out'])
+        print(f"Update result - matched: {update_result.matched_count}, modified: {update_result.modified_count}")
         
-        # Send confirmation notifications (implement as needed)
-        # send_booking_confirmation(booking)
+        if update_result.matched_count == 0:
+            return jsonify({"error": "Failed to update booking"}), 500
+        
+        # Block dates in listing availability
+        try:
+            block_dates(booking['listing_id'], booking['check_in'], booking['check_out'])
+            print("Successfully blocked dates")
+        except Exception as e:
+            print(f"Warning: Failed to block dates: {e}")
+        
+        print("Payment completion successful")
         
         return jsonify({
             "message": "Payment completed successfully",
-            "booking_status": "confirmed"
+            "booking_status": "confirmed",
+            "payment_verification": payment_verification,
+            "booking_reference": booking.get('booking_reference')
         }), 200
         
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"Payment completion error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": "Payment processing failed"}), 500
+
 
 @bookings_bp.route('/', methods=['GET'])
 @jwt_required()

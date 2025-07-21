@@ -121,17 +121,50 @@ export const bookingsAPI = {
   create: (data) => api.post('/api/bookings/', data),
   getAll: (params) => api.get('/api/bookings/', { params }),
   getById: (id) => api.get(`/api/bookings/${id}`),
-  completePayment: (id, data) => api.post(`/api/bookings/${id}/payment`, data),
+  completePayment: async (bookingId, paymentData) => {
+  const response = await api.post(`/api/bookings/${bookingId}/payment`, paymentData);
+  return response.data;
+},
   cancel: (id, data) => api.post(`/api/bookings/${id}/cancel`, data),
   complete: (id) => api.post(`/api/bookings/${id}/complete`),
 };
 
 // AI Features API
 export const aiAPI = {
+
+  getWeatherRecommendations: async (locationData) => {
+    try {
+      const response = await api.post('/api/ai-features/weather-recommendations', locationData);
+      return response.data;
+    } catch (error) {
+      console.error('Weather recommendations failed:', error);
+      throw error;
+    }
+  },
+
+  getWeatherEnhancedSearch: async (searchData) => {
+    try {
+      const response = await api.post('/api/ai-features/weather-enhanced-search', searchData);
+      return response.data;
+    } catch (error) {
+      console.error('Weather-enhanced search failed:', error);
+      throw error;
+    }
+  },
   // Voice to Listing - use the file upload instance
   voiceToListing: (data) => apiWithFiles.post('/api/ai-features/voice-to-listing', data),
   createListingFromVoice: (data) => api.post('/api/ai-features/create-listing-from-voice', data),
   demoVoiceTranscription: (data) => api.post('/api/ai-features/demo/voice-transcription', data),
+
+  generateListingContent: async (contentData) => {
+    try {
+      const response = await api.post('/api/ai-features/generate-listing-content', contentData);
+      return response.data;
+    } catch (error) {
+      console.error('AI content generation failed:', error);
+      throw error;
+    }
+  },
   
   // Village Story Generator
   generateVillageStory: (data) => api.post('/api/ai-features/generate-village-story', data),
