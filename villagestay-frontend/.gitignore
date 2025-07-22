@@ -13,6 +13,7 @@ models/
 service.json
 public/images
 public/videos
+public/icons
 .next
 public/fonts
 
