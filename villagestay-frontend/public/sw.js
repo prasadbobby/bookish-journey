@@ -1,7 +1,16 @@
-// villagestay-frontend/public/sw.js
+// villagestay-frontend/public/sw.js - Updated with better development handling
+
 const CACHE_NAME = 'villagestay-v1.2.0';
 const OFFLINE_PAGE = '/offline';
 const API_CACHE_NAME = 'villagestay-api-v1.0.0';
+
+// Check if we're in development mode
+const isDevelopment = () => {
+  return self.location.hostname === 'localhost' || 
+         self.location.hostname === '127.0.0.1' ||
+         self.location.hostname === '0.0.0.0' ||
+         self.location.port === '3000';
+};
 
 // Resources to cache immediately
 const STATIC_RESOURCES = [
@@ -10,10 +19,8 @@ const STATIC_RESOURCES = [
   '/listings',
   '/auth/login',
   '/manifest.json',
-  // Add your static assets
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png',
-  // Add critical CSS and JS files
 ];
 
 // API endpoints to cache
@@ -104,7 +111,13 @@ self.addEventListener('fetch', (event) => {
   
   const url = new URL(request.url);
 
-  // Handle API requests
+  // In development mode, don't intercept API requests at all
+  if (isDevelopment() && url.pathname.startsWith('/api/')) {
+    console.log('🔧 Service Worker: Skipping API interception in development:', url.pathname);
+    return; // Let the request go through normally
+  }
+
+  // Handle API requests (only in production)
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(handleApiRequest(request));
   }
@@ -118,9 +131,8 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
-// Handle API requests with network-first strategy
+// Handle API requests with network-first strategy (production only)
 async function handleApiRequest(request) {
-  // Additional check for API requests
   if (!isCacheableRequest(request)) {
     return fetch(request);
   }
@@ -129,13 +141,14 @@ async function handleApiRequest(request) {
   
   try {
     // Try network first
+    console.log('🌐 Service Worker: Trying network for API request');
     const response = await fetch(request);
     
     // Cache successful responses
     if (response.ok) {
-      // Clone response for cache
       const responseClone = response.clone();
       await cache.put(request, responseClone);
+      console.log('✅ Service Worker: Cached API response');
     }
     
     return response;
@@ -146,7 +159,6 @@ async function handleApiRequest(request) {
     const cachedResponse = await cache.match(request);
     
     if (cachedResponse) {
-      // Add offline indicator header
       const headers = new Headers(cachedResponse.headers);
       headers.set('X-Served-By', 'cache');
       
@@ -160,8 +172,8 @@ async function handleApiRequest(request) {
     // Return offline response for critical API endpoints
     return new Response(
       JSON.stringify({
-        error: 'Offline',
-        message: 'You are currently offline. Please check your connection.',
+        error: 'Network Error',
+        message: 'Unable to connect to server. Please check your connection.',
         offline: true
       }),
       {
@@ -174,7 +186,6 @@ async function handleApiRequest(request) {
 
 // Handle page requests with cache-first for performance
 async function handlePageRequest(request) {
-  // Additional check for page requests
   if (!isCacheableRequest(request)) {
     return fetch(request);
   }
@@ -217,7 +228,6 @@ async function handlePageRequest(request) {
 
 // Handle static resources with cache-first strategy
 async function handleStaticRequest(request) {
-  // Additional check for static requests
   if (!isCacheableRequest(request)) {
     return fetch(request);
   }
@@ -242,13 +252,15 @@ async function handleStaticRequest(request) {
     return response;
   } catch (error) {
     console.log('❌ Service Worker: Failed to fetch resource', request.url);
-    // Return the error instead of throwing it to prevent unhandled promise rejection
     return new Response('Resource not available offline', { 
       status: 503, 
       statusText: 'Service Unavailable' 
     });
   }
 }
+
+// Rest of your service worker code remains the same...
+// (Background sync, push notifications, etc.)
 
 // Background sync for bookings and favorites
 self.addEventListener('sync', (event) => {
@@ -367,7 +379,6 @@ async function syncBookings() {
           body: JSON.stringify(booking)
         });
         
-        // Remove from offline storage
         await removeOfflineData('bookings', booking.id);
       } catch (error) {
         console.error('Failed to sync booking:', error);

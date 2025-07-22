@@ -1,4 +1,4 @@
-// villagestay-frontend/src/components/pwa/PWAInstallPrompt.js
+// src/components/pwa/PWAInstallPrompt.js - Updated component
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -16,37 +16,73 @@ const PWAInstallPrompt = () => {
   const [showPrompt, setShowPrompt] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
   const [installing, setInstalling] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
   
   const {
-    canInstall,
-    isInstalled,
-    installApp,
+    isOnline,
+    isStandalone,
     getInstallInstructions
   } = usePWA();
 
-  // Show prompt after user has been on site for a while
+  // Handle beforeinstallprompt event
   useEffect(() => {
-    if (canInstall && !localStorage.getItem('pwa-prompt-dismissed')) {
-      const timer = setTimeout(() => {
-        setShowPrompt(true);
-      }, 10000); // Show after 10 seconds
+    const handleBeforeInstallPrompt = (e) => {
+      console.log('PWA: beforeinstallprompt event fired');
+      e.preventDefault();
+      setDeferredPrompt(e);
+      
+      // Show prompt after a delay if not dismissed
+      if (!localStorage.getItem('pwa-prompt-dismissed')) {
+        setTimeout(() => {
+          setShowPrompt(true);
+        }, 10000);
+      }
+    };
 
-      return () => clearTimeout(timer);
-    }
-  }, [canInstall]);
+    const handleAppInstalled = () => {
+      console.log('PWA: App installed');
+      setShowPrompt(false);
+      setDeferredPrompt(null);
+      localStorage.setItem('pwa-installed', 'true');
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
 
   const handleInstall = async () => {
-    setInstalling(true);
-    const success = await installApp();
-    
-    if (success) {
-      setShowPrompt(false);
-      localStorage.setItem('pwa-installed', 'true');
-    } else {
+    if (!deferredPrompt) {
       setShowInstructions(true);
+      return;
     }
+
+    setInstalling(true);
     
-    setInstalling(false);
+    try {
+      await deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      
+      if (outcome === 'accepted') {
+        console.log('PWA: User accepted installation');
+        setShowPrompt(false);
+        localStorage.setItem('pwa-installed', 'true');
+      } else {
+        console.log('PWA: User dismissed installation');
+        setShowInstructions(true);
+      }
+      
+      setDeferredPrompt(null);
+    } catch (error) {
+      console.error('PWA: Installation failed:', error);
+      setShowInstructions(true);
+    } finally {
+      setInstalling(false);
+    }
   };
 
   const handleDismiss = () => {
@@ -54,9 +90,12 @@ const PWAInstallPrompt = () => {
     localStorage.setItem('pwa-prompt-dismissed', Date.now().toString());
   };
 
-  const instructions = getInstallInstructions();
+  // Don't show if already installed or running standalone
+  if (isStandalone || localStorage.getItem('pwa-installed')) {
+    return null;
+  }
 
-  if (isInstalled || !canInstall) return null;
+  const instructions = getInstallInstructions();
 
   return (
     <AnimatePresence>

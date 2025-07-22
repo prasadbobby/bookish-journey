@@ -34,6 +34,7 @@ export const metadata = {
   }
 }
 
+// src/app/layout.js - Add suppressHydrationWarning
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
@@ -78,7 +79,7 @@ export default function RootLayout({ children }) {
           }}
         />
       </head>
-      <body className={inter.className}>
+      <body className={inter.className} suppressHydrationWarning={true}>
         <ClientLayout>{children}</ClientLayout>
       </body>
     </html>

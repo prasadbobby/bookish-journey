@@ -60,41 +60,50 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const login = async (email, password) => {
-    try {
-      console.log('Attempting login for:', email); // Debug log
-      const response = await authAPI.login(email, password);
-      const { access_token, user: userData } = response.data;
-      
-      console.log('Login response:', { access_token, userData }); // Debug log
-      
-      // Validate user data
-      if (!userData.user_type || !['tourist', 'host', 'admin'].includes(userData.user_type)) {
-        throw new Error('Invalid user account');
-      }
-      
-      setToken(access_token);
-      setUser(userData);
-      
-      // Store token in cookie (expires in 30 days)
-      Cookies.set('token', access_token, { 
-        expires: 30, 
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/'
-      });
-      
-      console.log('Token stored, user set:', userData); // Debug log
-      
-      toast.success(`Welcome back, ${userData.full_name}!`);
-      return { success: true, user: userData };
-    } catch (error) {
-      console.error('Login error:', error); // Debug log
-      const message = error.response?.data?.error || 'Login failed';
+// Update the login function in AuthContext.js
+const login = async (email, password) => {
+  try {
+    console.log('Attempting login for:', email);
+    const response = await authAPI.login(email, password);
+    const { access_token, user: userData } = response.data;
+    
+    console.log('Login response received:', { hasToken: !!access_token, userData });
+    
+    // Validate user data
+    if (!userData.user_type || !['tourist', 'host', 'admin'].includes(userData.user_type)) {
+      throw new Error('Invalid user account');
+    }
+    
+    setToken(access_token);
+    setUser(userData);
+    
+    // Store token in cookie (expires in 30 days)
+    Cookies.set('token', access_token, { 
+      expires: 30, 
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/'
+    });
+    
+    console.log('✅ Login successful, user set:', userData);
+    
+    toast.success(`Welcome back, ${userData.full_name}!`);
+    return { success: true, user: userData };
+  } catch (error) {
+    console.error('❌ Login error:', error);
+    
+    // Check if it's a network error (service worker serving offline content)
+    if (error.response?.status === 503 && error.response?.data?.offline) {
+      const message = 'Unable to connect to server. Please check your internet connection.';
       toast.error(message);
       return { success: false, error: message };
     }
-  };
+    
+    const message = error.response?.data?.error || error.message || 'Login failed';
+    toast.error(message);
+    return { success: false, error: message };
+  }
+};
 
   const register = async (userData) => {
     try {
