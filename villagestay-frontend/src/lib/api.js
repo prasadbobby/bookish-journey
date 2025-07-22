@@ -123,6 +123,59 @@ export const listingsAPI = {
   checkAvailability: (id, params) => api.get(`/api/listings/${id}/availability`, { params }),
   updateAvailability: (id, data) => api.post(`/api/listings/${id}/availability`, data),
   getHostListings: (hostId, params) => api.get(`/api/listings/host/${hostId}`, { params }),
+
+  // Advanced Search Methods
+  semanticSearch: async (searchData) => {
+    try {
+      const response = await api.post('/api/listings/semantic-search', searchData);
+      return response.data;
+    } catch (error) {
+      console.error('Semantic search failed:', error);
+      throw error;
+    }
+  },
+
+  emotionSearch: async (emotionData) => {
+    try {
+      const response = await api.post('/api/listings/emotion-search', emotionData);
+      return response.data;
+    } catch (error) {
+      console.error('Emotion search failed:', error);
+      throw error;
+    }
+  },
+
+  imageSearch: async (imageData) => {
+    try {
+      const response = await api.post('/api/listings/image-search', imageData);
+      return response.data;
+    } catch (error) {
+      console.error('Image search failed:', error);
+      throw error;
+    }
+  },
+
+  smartSearch: async (searchData) => {
+    try {
+      const response = await api.post('/api/listings/smart-search', searchData);
+      return response.data;
+    } catch (error) {
+      console.error('Smart search failed:', error);
+      throw error;
+    }
+  },
+
+  imageUploadSearch: async (imageData) => {
+    try {
+      const response = await api.post('/api/listings/image-visual-search', imageData);
+      return response.data;
+    } catch (error) {
+      console.error('Image upload search failed:', error);
+      throw error;
+    }
+  },
+
+
 };
 
 // Bookings API

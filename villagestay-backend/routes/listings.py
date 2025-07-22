@@ -5,6 +5,17 @@ from database import mongo
 from utils.ai_utils import generate_listing_content, translate_text, generate_pricing_suggestion
 from datetime import datetime, timedelta
 import math
+from utils.semantic_search_utils import (
+    semantic_search_listings, 
+    emotion_based_search, 
+    image_based_search
+)
+
+import base64
+from werkzeug.utils import secure_filename
+import os
+from PIL import Image
+import io
 
 listings_bp = Blueprint('listings', __name__)
 
@@ -589,3 +600,462 @@ def format_review(review):
        "created_at": review['created_at'].isoformat()
    }
 
+
+@listings_bp.route('/semantic-search', methods=['POST'])
+def semantic_search():
+    try:
+        data = request.get_json()
+        
+        query = data.get('query', '')
+        filters = data.get('filters', {})
+        
+        if not query:
+            return jsonify({"error": "Search query is required"}), 400
+        
+        print(f"🔍 Semantic search for: {query}")
+        
+        # Perform semantic search
+        results = semantic_search_listings(query, filters)
+        
+        return jsonify({
+            "results": results,
+            "total_found": len(results),
+            "search_type": "semantic",
+            "query": query,
+            "message": f"Found {len(results)} listings matching your search intent"
+        }), 200
+        
+    except Exception as e:
+        print(f"Semantic search error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@listings_bp.route('/emotion-search', methods=['POST'])
+def emotion_search():
+    try:
+        data = request.get_json()
+        
+        emotion = data.get('emotion', '')
+        filters = data.get('filters', {})
+        
+        if not emotion:
+            return jsonify({"error": "Emotion is required"}), 400
+        
+        print(f"😊 Emotion-based search for: {emotion}")
+        
+        # Perform emotion-based search
+        results = emotion_based_search(emotion, filters)
+        
+        return jsonify({
+            "results": results,
+            "total_found": len(results),
+            "search_type": "emotion",
+            "emotion": emotion,
+            "message": f"Found {len(results)} listings perfect for {emotion}"
+        }), 200
+        
+    except Exception as e:
+        print(f"Emotion search error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@listings_bp.route('/image-search', methods=['POST'])
+def image_search():
+    try:
+        data = request.get_json()
+        
+        image_description = data.get('image_description', '')
+        filters = data.get('filters', {})
+        
+        if not image_description:
+            return jsonify({"error": "Image description is required"}), 400
+        
+        print(f"🖼️ Image-based search for: {image_description}")
+        
+        # Perform image-based search
+        results = image_based_search(image_description, filters)
+        
+        return jsonify({
+            "results": results,
+            "total_found": len(results),
+            "search_type": "image",
+            "image_description": image_description,
+            "message": f"Found {len(results)} listings matching your visual preferences"
+        }), 200
+        
+    except Exception as e:
+        print(f"Image search error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@listings_bp.route('/smart-search', methods=['POST'])
+def smart_search():
+    """Intelligent search that determines the best search method"""
+    try:
+        data = request.get_json()
+        
+        query = data.get('query', '')
+        search_type = data.get('search_type', 'auto')  # auto, semantic, emotion, image
+        filters = data.get('filters', {})
+        
+        if not query:
+            return jsonify({"error": "Search query is required"}), 400
+        
+        results = []
+        detected_type = search_type
+        
+        if search_type == 'auto':
+            # Auto-detect search type based on query content
+            detected_type = detect_search_type(query)
+        
+        if detected_type == 'semantic':
+            results = semantic_search_listings(query, filters)
+        elif detected_type == 'emotion':
+            # Extract emotion from query
+            emotion = extract_emotion_from_query(query)
+            results = emotion_based_search(emotion, filters)
+        elif detected_type == 'image':
+            results = image_based_search(query, filters)
+        else:
+            # Default to semantic search
+            results = semantic_search_listings(query, filters)
+        
+        return jsonify({
+            "results": results,
+            "total_found": len(results),
+            "search_type": detected_type,
+            "query": query,
+            "message": f"Smart search found {len(results)} perfect matches"
+        }), 200
+        
+    except Exception as e:
+        print(f"Smart search error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+def detect_search_type(query):
+    """Auto-detect the type of search based on query content"""
+    
+    query_lower = query.lower()
+    
+    # Emotion indicators
+    emotion_words = ['stress', 'relax', 'peaceful', 'adventure', 'romantic', 'family', 'calm', 'excited']
+    if any(word in query_lower for word in emotion_words):
+        return 'emotion'
+    
+    # Image description indicators
+    image_words = ['looks like', 'similar to', 'photo', 'picture', 'image', 'visual', 'appears']
+    if any(word in query_lower for word in image_words):
+        return 'image'
+    
+    # Default to semantic
+    return 'semantic'
+
+def extract_emotion_from_query(query):
+    """Extract emotion from search query"""
+    
+    query_lower = query.lower()
+    
+    emotion_map = {
+        'stress': 'stress-relief',
+        'relax': 'relaxation', 
+        'peaceful': 'relaxation',
+        'calm': 'relaxation',
+        'adventure': 'adventure',
+        'romantic': 'romantic',
+        'family': 'family-bonding',
+        'culture': 'cultural-immersion',
+        'traditional': 'cultural-immersion'
+    }
+    
+    for word, emotion in emotion_map.items():
+        if word in query_lower:
+            return emotion
+    
+    return 'relaxation'  # Default emotion
+
+
+# villagestay-backend/routes/listings.py - Add the complete image upload route
+
+@listings_bp.route('/image-visual-search', methods=['POST'])
+def image_visual_search():
+    """Visual search with actual image upload"""
+    try:
+        data = request.get_json()
+        
+        image_base64 = data.get('image_data', '')
+        filters = data.get('filters', {})
+        
+        if not image_base64:
+            return jsonify({"error": "Image data is required"}), 400
+        
+        print(f"🖼️ Processing uploaded image for visual search")
+        
+        # Analyze image using Gemini Vision
+        visual_analysis = analyze_image_with_gemini(image_base64)
+        
+        if not visual_analysis:
+            return jsonify({"error": "Failed to analyze image"}), 400
+        
+        # Search listings based on visual analysis
+        results = search_listings_by_visual_analysis(visual_analysis, filters)
+        
+        return jsonify({
+            "results": results,
+            "total_found": len(results),
+            "search_type": "visual_upload",
+            "visual_analysis": visual_analysis,
+            "message": f"Found {len(results)} listings matching your uploaded image"
+        }), 200
+        
+    except Exception as e:
+        print(f"Image visual search error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+def analyze_image_with_gemini(image_base64):
+    """Analyze uploaded image using Gemini Vision API"""
+    
+    try:
+        from utils.ai_utils import call_gemini_with_image
+        
+        # Clean base64 data
+        if image_base64.startswith('data:image'):
+            image_base64 = image_base64.split(',')[1]
+        
+        analysis_prompt = """
+        Analyze this image and extract details that would help find similar rural accommodations or village stays.
+        
+        Look for:
+        1. Architectural style (traditional, modern, rustic, heritage, etc.)
+        2. Building materials (wood, stone, brick, mud, etc.)
+        3. Setting/Environment (mountains, fields, water, forest, village, etc.)
+        4. Property type (house, cottage, hut, mansion, farm building, etc.)
+        5. Atmosphere/mood (peaceful, vibrant, rustic, luxury, cozy, etc.)
+        6. Outdoor features (garden, courtyard, terrace, balcony, etc.)
+        7. Landscape elements (trees, plants, water bodies, hills, etc.)
+        8. Cultural elements (traditional design, local architecture, etc.)
+        
+        Respond with JSON:
+        {
+            "visual_features": {
+                "architecture": "description of architectural style",
+                "materials": ["material1", "material2"],
+                "setting": "description of setting/environment",
+                "property_type": "type of property seen",
+                "atmosphere": "mood/atmosphere of the place",
+                "outdoor_features": ["feature1", "feature2"],
+                "landscape": ["element1", "element2"],
+                "cultural_elements": ["element1", "element2"]
+            },
+            "matching_keywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5"],
+            "suggested_amenities": ["amenity1", "amenity2", "amenity3"],
+            "confidence_score": 0.95
+        }
+        """
+        
+        response = call_gemini_with_image(analysis_prompt, image_base64)
+        
+        # Extract JSON from response
+        import re
+        json_match = re.search(r'\{.*\}', response, re.DOTALL)
+        if json_match:
+            import json
+            return json.loads(json_match.group())
+        else:
+            return create_fallback_visual_analysis()
+            
+    except Exception as e:
+        print(f"Gemini image analysis error: {e}")
+        return create_fallback_visual_analysis()
+
+def search_listings_by_visual_analysis(visual_analysis, filters):
+    """Search listings based on visual analysis results"""
+    
+    try:
+        from utils.semantic_search_utils import format_listing_for_response
+        from database import mongo
+        from bson import ObjectId
+        
+        # Build search criteria
+        search_criteria = {"is_active": True, "is_approved": True}
+        
+        # Apply basic filters
+        if filters:
+            if filters.get('min_price'):
+                search_criteria["price_per_night"] = {"$gte": float(filters['min_price'])}
+            if filters.get('max_price'):
+                if "price_per_night" in search_criteria:
+                    search_criteria["price_per_night"]["$lte"] = float(filters['max_price'])
+                else:
+                    search_criteria["price_per_night"] = {"$lte": float(filters['max_price'])}
+            if filters.get('property_type'):
+                search_criteria["property_type"] = filters['property_type']
+            if filters.get('guests'):
+                search_criteria["max_guests"] = {"$gte": int(filters['guests'])}
+        
+        # Get all listings for visual analysis
+        all_listings = list(mongo.db.listings.find(search_criteria))
+        
+        scored_listings = []
+        
+        for listing in all_listings:
+            score = calculate_visual_similarity_score(listing, visual_analysis)
+            if score > 0:
+                formatted_listing = format_listing_for_response(listing)
+                formatted_listing.update({
+                    'visual_similarity_score': score,
+                    'visual_match_reasons': get_visual_similarity_reasons(listing, visual_analysis)
+                })
+                scored_listings.append(formatted_listing)
+        
+        # Sort by visual similarity score
+        scored_listings.sort(key=lambda x: x['visual_similarity_score'], reverse=True)
+        
+        return scored_listings[:15]
+        
+    except Exception as e:
+        print(f"Visual search error: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
+
+def calculate_visual_similarity_score(listing, visual_analysis):
+    """Calculate visual similarity score based on image analysis"""
+    
+    score = 0
+    visual_features = visual_analysis.get('visual_features', {})
+    keywords = visual_analysis.get('matching_keywords', [])
+    suggested_amenities = visual_analysis.get('suggested_amenities', [])
+    
+    # Prepare searchable text
+    text_fields = [
+        listing.get('title', ''),
+        listing.get('description', ''),
+        listing.get('location', ''),
+        ' '.join(listing.get('amenities', [])),
+        ' '.join(listing.get('sustainability_features', []))
+    ]
+    
+    searchable_text = ' '.join(text_fields).lower()
+    
+    # 1. Architecture matching (25% weight)
+    architecture = visual_features.get('architecture', '').lower()
+    if architecture:
+        arch_keywords = architecture.split()
+        for keyword in arch_keywords:
+            if keyword in searchable_text:
+                score += 5
+    
+    # 2. Materials matching (15% weight)
+    materials = visual_features.get('materials', [])
+    for material in materials:
+        if material.lower() in searchable_text:
+            score += 3
+    
+    # 3. Setting/Environment matching (20% weight)
+    setting = visual_features.get('setting', '').lower()
+    if setting:
+        setting_keywords = setting.split()
+        for keyword in setting_keywords:
+            if keyword in searchable_text:
+                score += 4
+    
+    # 4. Property type matching (15% weight)
+    property_type = visual_features.get('property_type', '').lower()
+    listing_property_type = listing.get('property_type', '').lower()
+    
+    # Direct property type match
+    if property_type in listing_property_type or listing_property_type in property_type:
+        score += 15
+    
+    # 5. Atmosphere matching (10% weight)
+    atmosphere = visual_features.get('atmosphere', '').lower()
+    if atmosphere:
+        atm_keywords = atmosphere.split()
+        for keyword in atm_keywords:
+            if keyword in searchable_text:
+                score += 2
+    
+    # 6. Outdoor features matching (10% weight)
+    outdoor_features = visual_features.get('outdoor_features', [])
+    for feature in outdoor_features:
+        if feature.lower() in searchable_text:
+            score += 2
+    
+    # 7. Landscape elements matching (5% weight)
+    landscape = visual_features.get('landscape', [])
+    for element in landscape:
+        if element.lower() in searchable_text:
+            score += 1
+    
+    # 8. General keyword matching
+    for keyword in keywords:
+        if keyword.lower() in searchable_text:
+            score += 2
+    
+    # 9. Suggested amenities matching
+    listing_amenities = [a.lower() for a in listing.get('amenities', [])]
+    for amenity in suggested_amenities:
+        if any(amenity.lower() in la for la in listing_amenities):
+            score += 3
+    
+    # 10. Confidence bonus
+    confidence = visual_analysis.get('confidence_score', 0.5)
+    score = score * confidence
+    
+    return round(score, 2)
+
+def get_visual_similarity_reasons(listing, visual_analysis):
+    """Get reasons why this listing matches the uploaded image"""
+    
+    reasons = []
+    visual_features = visual_analysis.get('visual_features', {})
+    
+    searchable_text = ' '.join([
+        listing.get('title', ''),
+        listing.get('description', ''),
+        ' '.join(listing.get('amenities', []))
+    ]).lower()
+    
+    # Check architecture match
+    architecture = visual_features.get('architecture', '')
+    if architecture and any(word.lower() in searchable_text for word in architecture.split()):
+        reasons.append(f"Similar {architecture.lower()} architecture")
+    
+    # Check setting match
+    setting = visual_features.get('setting', '')
+    if setting and any(word.lower() in searchable_text for word in setting.split()):
+        reasons.append(f"Located in {setting.lower()} environment")
+    
+    # Check property type match
+    property_type = visual_features.get('property_type', '')
+    if property_type and property_type.lower() in listing.get('property_type', '').lower():
+        reasons.append(f"Same property type: {property_type}")
+    
+    # Check materials match
+    for material in visual_features.get('materials', []):
+        if material.lower() in searchable_text:
+            reasons.append(f"Built with {material.lower()}")
+    
+    # Check outdoor features
+    for feature in visual_features.get('outdoor_features', []):
+        if feature.lower() in searchable_text:
+            reasons.append(f"Has {feature.lower()}")
+    
+    return reasons[:3]  # Return top 3 reasons
+
+def create_fallback_visual_analysis():
+    """Create fallback analysis if AI fails"""
+    return {
+        "visual_features": {
+            "architecture": "traditional rural",
+            "materials": ["wood", "stone"],
+            "setting": "rural village",
+            "property_type": "homestay",
+            "atmosphere": "peaceful",
+            "outdoor_features": ["garden"],
+            "landscape": ["trees", "fields"],
+            "cultural_elements": ["traditional design"]
+        },
+        "matching_keywords": ["rural", "traditional", "peaceful", "village", "authentic"],
+        "suggested_amenities": ["traditional cooking", "local guide", "garden"],
+        "confidence_score": 0.7
+    }
