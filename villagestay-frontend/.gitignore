@@ -17,3 +17,4 @@ public/icons
 .next
 public/fonts
 public/screenshots
+.env.local

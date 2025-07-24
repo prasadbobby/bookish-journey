@@ -17,4 +17,5 @@ public/videos
 public/fonts
 public/screenshots
 public/icons
+.env.local
 
