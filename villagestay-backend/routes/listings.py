@@ -517,56 +517,62 @@ def update_availability(listing_id):
 
 @listings_bp.route('/host/<host_id>', methods=['GET'])
 def get_host_listings(host_id):
-   try:
-       # Get query parameters
-       page = int(request.args.get('page', 1))
-       limit = int(request.args.get('limit', 10))
-       
-       # Build query
-       query = {"host_id": ObjectId(host_id), "is_active": True}
-       
-       # Execute query
-       skip = (page - 1) * limit
-       
-       listings = list(mongo.db.listings.find(query)
-                      .sort("created_at", -1)
-                      .skip(skip)
-                      .limit(limit))
-       
-       # Get total count
-       total_count = mongo.db.listings.count_documents(query)
-       
-       # Format listings
-       formatted_listings = []
-       for listing in listings:
-           formatted_listing = {
-               "id": str(listing['_id']),
-               "title": listing['title'],
-               "description": listing['description'][:200] + "..." if len(listing['description']) > 200 else listing['description'],
-               "location": listing['location'],
-               "price_per_night": listing['price_per_night'],
-               "property_type": listing['property_type'],
-               "images": listing['images'][:1],
-               "rating": listing.get('rating', 0),
-               "review_count": listing.get('review_count', 0),
-               "is_approved": listing.get('is_approved', False),
-               "created_at": listing['created_at'].isoformat()
-           }
-           
-           formatted_listings.append(formatted_listing)
-       
-       return jsonify({
-           "listings": formatted_listings,
-           "pagination": {
-               "page": page,
-               "limit": limit,
-               "total_count": total_count,
-               "total_pages": math.ceil(total_count / limit)
-           }
-       }), 200
-       
-   except Exception as e:
-       return jsonify({"error": str(e)}), 500
+    try:
+        # Get query parameters
+        page = int(request.args.get('page', 1))
+        limit = int(request.args.get('limit', 10))
+        
+        # Build query
+        query = {"host_id": ObjectId(host_id), "is_active": True}
+        
+        # Execute query
+        skip = (page - 1) * limit
+        
+        listings = list(mongo.db.listings.find(query)
+                       .sort("created_at", -1)
+                       .skip(skip)
+                       .limit(limit))
+        
+        # Get total count (including inactive listings for host)
+        total_count = mongo.db.listings.count_documents({"host_id": ObjectId(host_id)})
+        
+        # Format listings
+        formatted_listings = []
+        for listing in listings:
+            formatted_listing = {
+                "id": str(listing['_id']),
+                "title": listing['title'],
+                "description": listing['description'][:200] + "..." if len(listing['description']) > 200 else listing['description'],
+                "location": listing['location'],
+                "price_per_night": listing['price_per_night'],
+                "property_type": listing['property_type'],
+                "images": listing['images'][:1],
+                "rating": listing.get('rating', 0),
+                "review_count": listing.get('review_count', 0),
+                "is_approved": listing.get('is_approved', False),
+                "is_active": listing.get('is_active', True),
+                "created_at": listing['created_at'].isoformat(),
+                # Add status information
+                "status": "active" if listing.get('is_approved', False) and listing.get('is_active', True) 
+                         else "pending" if not listing.get('is_approved', False) and listing.get('is_active', True)
+                         else "inactive"
+            }
+            
+            formatted_listings.append(formatted_listing)
+        
+        return jsonify({
+            "listings": formatted_listings,
+            "pagination": {
+                "page": page,  
+                "limit": limit,
+                "total_count": total_count,
+                "total_pages": math.ceil(total_count / limit)
+            }
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 @listings_bp.route('/<listing_id>/pricing-suggestion', methods=['GET'])
 @jwt_required()
@@ -1183,3 +1189,39 @@ def get_place_details_route():
             "success": False,
             "error": str(e)
         }), 400
+    
+
+@listings_bp.route('/host/<host_id>/stats', methods=['GET'])
+@jwt_required()
+def get_host_listing_stats(host_id):
+    try:
+        user_id = get_jwt_identity()
+        
+        # Verify ownership
+        if str(user_id) != host_id:
+            return jsonify({"error": "Unauthorized"}), 403
+        
+        # Get all listings for this host (including inactive)
+        all_listings = list(mongo.db.listings.find({"host_id": ObjectId(host_id)}))
+        
+        # Calculate stats
+        total_listings = len(all_listings)
+        active_listings = len([l for l in all_listings if l.get('is_approved', False) and l.get('is_active', True)])
+        pending_listings = len([l for l in all_listings if not l.get('is_approved', False) and l.get('is_active', True)])
+        inactive_listings = len([l for l in all_listings if not l.get('is_active', True)])
+        
+        # Calculate average rating
+        total_rating = sum(l.get('rating', 0) for l in all_listings if l.get('rating', 0) > 0)
+        rated_listings = len([l for l in all_listings if l.get('rating', 0) > 0])
+        avg_rating = round(total_rating / rated_listings, 1) if rated_listings > 0 else 0.0
+        
+        return jsonify({
+            "total_listings": total_listings,
+            "active_listings": active_listings,
+            "pending_listings": pending_listings,
+            "inactive_listings": inactive_listings,
+            "avg_rating": avg_rating
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

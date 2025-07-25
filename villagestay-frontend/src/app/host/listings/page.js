@@ -46,6 +46,36 @@ const HostListingsPage = () => {
     fetchListings();
   }, [isHost, router, pagination.page]);
 
+
+  // In the HostListingsPage component, add this state and function:
+const [stats, setStats] = useState({
+  total_listings: 0,
+  active_listings: 0,
+  pending_listings: 0,
+  inactive_listings: 0,
+  avg_rating: 0.0
+});
+
+const fetchStats = async () => {
+  try {
+    const response = await listingsAPI.getHostStats(user.id);
+    setStats(response.data);
+  } catch (error) {
+    console.error('Failed to fetch stats:', error);
+  }
+};
+
+// Update the useEffect to call fetchStats:
+useEffect(() => {
+  if (!isHost) {
+    toast.error('Access denied. Host account required.');
+    router.push('/');
+    return;
+  }
+  fetchListings();
+  fetchStats();
+}, [isHost, router, pagination.page]);
+
   const fetchListings = async () => {
     try {
       setLoading(true);
@@ -65,6 +95,23 @@ const HostListingsPage = () => {
       setLoading(false);
     }
   };
+  const getListingStats = () => {
+  const totalListings = listings.length;
+  const activeListings = listings.filter(l => l.is_approved && l.is_active).length;
+  const pendingListings = listings.filter(l => !l.is_approved && l.is_active).length;
+  const inactiveListings = listings.filter(l => !l.is_active).length;
+  
+  const totalRating = listings.reduce((sum, l) => sum + (l.rating || 0), 0);
+  const avgRating = totalListings > 0 ? (totalRating / totalListings).toFixed(1) : '0.0';
+  
+  return {
+    total: totalListings,
+    active: activeListings,
+    pending: pendingListings,
+    inactive: inactiveListings,
+    avgRating
+  };
+};
 
   const handleDeleteListing = async (listingId) => {
     if (!confirm("Are you sure you want to delete this listing?")) return;
@@ -129,44 +176,44 @@ const HostListingsPage = () => {
     }
   };
 
-  // Add this modal before the closing div:
-  {
-    /* Delete Confirmation Modal */
-  }
-  {
-    showDeleteModal && listingToDelete && (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4">
-          <h3 className="text-xl font-semibold text-gray-900 mb-4">
-            Delete Listing
-          </h3>
+  // // Add this modal before the closing div:
+  // {
+  //   /* Delete Confirmation Modal */
+  // }
+  // {
+  //   showDeleteModal && listingToDelete && (
+  //     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+  //       <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4">
+  //         <h3 className="text-xl font-semibold text-gray-900 mb-4">
+  //           Delete Listing
+  //         </h3>
 
-          <p className="text-gray-600 mb-6">
-            Are you sure you want to delete "{listingToDelete.title}"? This
-            action cannot be undone.
-          </p>
+  //         <p className="text-gray-600 mb-6">
+  //           Are you sure you want to delete "{listingToDelete.title}"? This
+  //           action cannot be undone.
+  //         </p>
 
-          <div className="flex space-x-4">
-            <button
-              onClick={() => {
-                setShowDeleteModal(false);
-                setListingToDelete(null);
-              }}
-              className="flex-1 btn-secondary"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={confirmDelete}
-              className="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold py-3 px-6 rounded-xl"
-            >
-              Delete
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  //         <div className="flex space-x-4">
+  //           <button
+  //             onClick={() => {
+  //               setShowDeleteModal(false);
+  //               setListingToDelete(null);
+  //             }}
+  //             className="flex-1 btn-secondary"
+  //           >
+  //             Cancel
+  //           </button>
+  //           <button
+  //             onClick={confirmDelete}
+  //             className="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold py-3 px-6 rounded-xl"
+  //           >
+  //             Delete
+  //           </button>
+  //         </div>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="min-h-screen village-bg pt-20">
@@ -192,69 +239,64 @@ const HostListingsPage = () => {
 
         {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="card p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">
-                  Total Listings
-                </p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {pagination.total_count}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
-                <EyeIcon className="w-6 h-6 text-white" />
-              </div>
-            </div>
-          </div>
+  <div className="card p-6">
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-sm font-medium text-gray-600">
+          Total Listings
+        </p>
+        <p className="text-2xl font-bold text-gray-900">
+          {getListingStats().total}
+        </p>
+      </div>
+      <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
+        <EyeIcon className="w-6 h-6 text-white" />
+      </div>
+    </div>
+  </div>
 
-          <div className="card p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Active</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {listings.filter((l) => l.is_approved && l.is_active).length}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-green-600 rounded-xl flex items-center justify-center">
-                <CheckCircleIcon className="w-6 h-6 text-white" />
-              </div>
-            </div>
-          </div>
+  <div className="card p-6">
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-sm font-medium text-gray-600">Active</p>
+        <p className="text-2xl font-bold text-gray-900">
+          {getListingStats().active}
+        </p>
+      </div>
+      <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-green-600 rounded-xl flex items-center justify-center">
+        <CheckCircleIcon className="w-6 h-6 text-white" />
+      </div>
+    </div>
+  </div>
 
-          <div className="card p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Pending</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {listings.filter((l) => !l.is_approved && l.is_active).length}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-gradient-to-r from-yellow-500 to-yellow-600 rounded-xl flex items-center justify-center">
-                <ClockIcon className="w-6 h-6 text-white" />
-              </div>
-            </div>
-          </div>
+  <div className="card p-6">
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-sm font-medium text-gray-600">Pending</p>
+        <p className="text-2xl font-bold text-gray-900">
+          {getListingStats().pending}
+        </p>
+      </div>
+      <div className="w-12 h-12 bg-gradient-to-r from-yellow-500 to-yellow-600 rounded-xl flex items-center justify-center">
+        <ClockIcon className="w-6 h-6 text-white" />
+      </div>
+    </div>
+  </div>
 
-          <div className="card p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Avg. Rating</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {listings.length > 0
-                    ? (
-                        listings.reduce((sum, l) => sum + (l.rating || 0), 0) /
-                        listings.length
-                      ).toFixed(1)
-                    : "0.0"}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl flex items-center justify-center">
-                <StarIcon className="w-6 h-6 text-white" />
-              </div>
-            </div>
-          </div>
-        </div>
+  <div className="card p-6">
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-sm font-medium text-gray-600">Avg. Rating</p>
+        <p className="text-2xl font-bold text-gray-900">
+          {getListingStats().avgRating}
+        </p>
+      </div>
+      <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl flex items-center justify-center">
+        <StarIcon className="w-6 h-6 text-white" />
+      </div>
+    </div>
+  </div>
+</div>
 
         {/* Listings Grid */}
         {loading ? (
@@ -449,6 +491,37 @@ const HostListingsPage = () => {
           </div>
         )}
       </div>
+      {showDeleteModal && listingToDelete && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4">
+      <h3 className="text-xl font-semibold text-gray-900 mb-4">
+        Delete Listing
+      </h3>
+
+      <p className="text-gray-600 mb-6">
+        Are you sure you want to delete "{listingToDelete.title}"? This action cannot be undone.
+      </p>
+
+      <div className="flex space-x-4">
+        <button
+          onClick={() => {
+            setShowDeleteModal(false);
+            setListingToDelete(null);
+          }}
+          className="flex-1 btn-secondary"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={confirmDelete}
+          className="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold py-3 px-6 rounded-xl transition-colors duration-200"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 };
