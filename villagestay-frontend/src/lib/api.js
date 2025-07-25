@@ -123,6 +123,7 @@ export const listingsAPI = {
   checkAvailability: (id, params) => api.get(`/api/listings/${id}/availability`, { params }),
   updateAvailability: (id, data) => api.post(`/api/listings/${id}/availability`, data),
   getHostListings: (hostId, params) => api.get(`/api/listings/host/${hostId}`, { params }),
+  getHostStats: (hostId) => api.get(`/api/listings/host/${hostId}/stats`),
 
    getLocationSuggestions: async (params) => {
     try {
