@@ -402,13 +402,13 @@ const SideNav = () => {
         </div>
         
         {/* User Type Badge */}
-        <div className="mt-4">
+        {/* <div className="mt-4">
           <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-white/20 backdrop-blur-sm text-white border border-white/30`}>
             {isHost && '🏠 Host Portal'}
             {isTourist && '✈️ Traveler Portal'}
             {isAdmin && '⚙️ Admin Portal'}
           </span>
-        </div>
+        </div> */}
       </div>
 
       {/* Navigation Items */}

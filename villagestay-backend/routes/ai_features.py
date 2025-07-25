@@ -267,6 +267,8 @@ def voice_to_listing_magic_google(audio_data, language="hi", host_id=None):
         print(f"❌ Voice processing error: {str(e)}")
         raise Exception(f"Voice processing failed: {str(e)}")
 
+# In the create_listing_from_voice function, add geocoding
+
 @ai_features_bp.route('/create-listing-from-voice', methods=['POST'])
 @jwt_required()
 def create_listing_from_voice():
@@ -300,13 +302,6 @@ def create_listing_from_voice():
         
         if not voice_record:
             print(f"❌ No voice record found for processing_id: {processing_id}, user_id: {user_id}")
-            
-            # Debug: Check what records exist for this user
-            user_records = list(mongo.db.voice_generations.find({"host_id": ObjectId(user_id)}))
-            print(f"🔍 Found {len(user_records)} voice records for user {user_id}")
-            for record in user_records:
-                print(f"  - ID: {record['_id']}, Created: {record['created_at']}")
-            
             return jsonify({"error": "Voice processing record not found"}), 404
         
         print(f"✅ Found voice record: {voice_record['_id']}")
@@ -332,17 +327,46 @@ def create_listing_from_voice():
         pricing_intel = processing_result.get('pricing_intelligence', {})
         suggested_price = pricing_intel.get('base_price_per_night', 2000)
         
+        # Determine location - try custom edits first, then AI generated, then user address
+        location = custom_edits.get('location') or final_listing.get('location') or user.get('address', 'Rural India')
+        
+        # Geocode the location to get coordinates
+        coordinates = {"lat": 0, "lng": 0}  # Default fallback
+        formatted_location = location
+        
+        try:
+            print(f"🌍 Attempting to geocode location: {location}")
+            from utils.geocoding_utils import get_coordinates_from_location
+            
+            geocoding_result = get_coordinates_from_location(location)
+            
+            coordinates = {
+                "lat": geocoding_result['lat'],
+                "lng": geocoding_result['lng']
+            }
+            
+            # Use the formatted address from Google if available
+            if geocoding_result.get('formatted_address'):
+                formatted_location = geocoding_result['formatted_address']
+                print(f"✅ Using formatted location: {formatted_location}")
+            
+            print(f"✅ Geocoding successful for voice listing: {coordinates}")
+            
+        except Exception as geocoding_error:
+            print(f"⚠️ Geocoding failed for voice listing: {geocoding_error}")
+            # Continue with listing creation but log the error
+        
         # Create the actual listing
         listing_doc = {
             "host_id": ObjectId(user_id),
             "title": final_listing.get('title', 'Rural Village Experience'),
             "description": final_listing.get('description', 'Authentic rural stay experience'),
-            "location": user.get('address', 'Rural India'),
+            "location": formatted_location,  # Use formatted location
             "price_per_night": custom_edits.get('price_per_night', suggested_price),
             "property_type": final_listing.get('property_type', 'homestay'),
             "amenities": final_listing.get('amenities', ['Home-cooked meals', 'Local guide']),
-            "images": custom_edits.get('images', []),  # Images from custom_edits
-            "coordinates": {"lat": 0, "lng": 0},  # Will be geocoded later
+            "images": custom_edits.get('images', []),
+            "coordinates": coordinates,  # Geocoded coordinates
             "max_guests": custom_edits.get('max_guests', final_listing.get('max_guests', 4)),
             "house_rules": final_listing.get('house_rules', []),
             "sustainability_features": final_listing.get('sustainability_features', []),
@@ -356,19 +380,34 @@ def create_listing_from_voice():
             "ai_generated": True,
             "voice_generated": True,
             "original_voice_language": voice_record['original_language'],
-            "voice_processing_id": processing_id
+            "voice_processing_id": processing_id,
+            # Add required fields
+            "ai_generated_content": {
+                "description": final_listing.get('description', ''),
+                "suggested_amenities": final_listing.get('amenities', []),
+                "house_rules": final_listing.get('house_rules', []),
+                "pricing_tips": [
+                    "Consider seasonal pricing adjustments",
+                    "Offer discounts for longer stays"
+                ]
+            },
+            "admin_notes": "",
+            "approved_at": None,
+            "approved_by": None
         }
         
-        print(f"📝 Creating listing: {listing_doc['title']}")
+        print(f"📝 Creating voice-generated listing: {listing_doc['title']}")
         
         # Insert listing
         result = mongo.db.listings.insert_one(listing_doc)
         
-        print(f"✅ Listing created with ID: {result.inserted_id}")
+        print(f"✅ Voice listing created with ID: {result.inserted_id}")
         
         return jsonify({
             "message": "Listing created successfully from voice",
             "listing_id": str(result.inserted_id),
+            "coordinates": coordinates,
+            "formatted_location": formatted_location,
             "listing_data": {
                 "title": listing_doc['title'],
                 "description": listing_doc['description'],
@@ -381,7 +420,6 @@ def create_listing_from_voice():
     except Exception as e:
         print(f"❌ Create listing error: {str(e)}")
         return jsonify({"error": str(e)}), 500
-
 
 @ai_features_bp.route('/generate-listing-content', methods=['POST'])
 @jwt_required()

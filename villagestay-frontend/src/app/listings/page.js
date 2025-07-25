@@ -1554,6 +1554,8 @@ const [showMapView, setShowMapView] = useState(false);
       ? weatherEnhancedListings
       : listings;
 
+      console.log('📊 All listings for map:', displayListings.length);
+console.log('📋 Sample listings:', displayListings.slice(0, 3));
   return (
     <Providers>
       <AppLayout>
@@ -2538,7 +2540,7 @@ const [showMapView, setShowMapView] = useState(false);
           </div>
         </div>
         <MapView 
-  listings={displayListings}
+  listings={displayListings} // Make sure this contains all listings
   isOpen={showMapView}
   onClose={() => setShowMapView(false)}
   filters={filters}

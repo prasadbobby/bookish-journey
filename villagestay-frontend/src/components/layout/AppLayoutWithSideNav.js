@@ -180,8 +180,8 @@ const AppLayoutWithSideNav = ({ children }) => {
       {/* Main Content Area */}
       <div className="lg:ml-72">
         {/* Top Header */}
-        <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-30">
-          <div className="px-6 py-4">
+        <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-30 h-30" style={{ height: '97px' }}>
+          <div className="px-6 py-4" style={{ paddingTop: '1.5em' }}>
             <div className="flex items-center justify-between">
               
               {/* Mobile Menu Button */}

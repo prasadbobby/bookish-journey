@@ -2,7 +2,9 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from bson import ObjectId
 from database import mongo
+from utils.geocoding_utils import get_coordinates_from_location, validate_coordinates
 from utils.ai_utils import generate_listing_content, translate_text, generate_pricing_suggestion
+from utils.geocoding_utils import get_coordinates_from_location, validate_coordinates, get_location_suggestions, get_place_details
 from datetime import datetime, timedelta
 import math
 from utils.semantic_search_utils import (
@@ -18,6 +20,9 @@ from PIL import Image
 import io
 
 listings_bp = Blueprint('listings', __name__)
+
+
+
 
 @listings_bp.route('/', methods=['GET'])
 def get_listings():
@@ -37,6 +42,7 @@ def get_listings():
         check_out = request.args.get('check_out')
         sort_by = request.args.get('sort_by', 'created_at')
         order = request.args.get('order', 'desc')
+        
         
         # Build query
         query = {"is_active": True, "is_approved": True}
@@ -184,7 +190,6 @@ def get_listing(listing_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# In your backend listings.py, make sure to handle the images properly:
 
 @listings_bp.route('/', methods=['POST'])
 @jwt_required()
@@ -209,17 +214,42 @@ def create_listing():
         if not images:
             return jsonify({"error": "At least one image is required"}), 400
         
+        # Geocode the location to get coordinates
+        coordinates = {"lat": 0, "lng": 0}  # Default fallback
+        formatted_location = data['location']
+        
+        try:
+            print(f"🌍 Attempting to geocode location: {data['location']}")
+            geocoding_result = get_coordinates_from_location(data['location'])
+            
+            coordinates = {
+                "lat": geocoding_result['lat'],
+                "lng": geocoding_result['lng']
+            }
+            
+            # Use the formatted address from Google if available
+            if geocoding_result.get('formatted_address'):
+                formatted_location = geocoding_result['formatted_address']
+                print(f"✅ Using formatted location: {formatted_location}")
+            
+            print(f"✅ Geocoding successful: {coordinates}")
+            
+        except Exception as geocoding_error:
+            print(f"⚠️ Geocoding failed: {geocoding_error}")
+            # Continue with listing creation but log the error
+            # Don't fail the entire request due to geocoding issues
+        
         # Create listing document
         listing_doc = {
             "host_id": ObjectId(user_id),
             "title": data['title'],
             "description": data.get('description', ''),
-            "location": data['location'],
+            "location": formatted_location,  # Use formatted location
             "price_per_night": float(data['price_per_night']),
             "property_type": data['property_type'],
             "amenities": data.get('amenities', []),
-            "images": images,  # Store the image URLs/base64 data
-            "coordinates": data.get('coordinates', {"lat": 0, "lng": 0}),
+            "images": images,
+            "coordinates": coordinates,  # Geocoded coordinates
             "max_guests": int(data.get('max_guests', 4)),
             "house_rules": data.get('house_rules', []),
             "sustainability_features": data.get('sustainability_features', []),
@@ -229,7 +259,12 @@ def create_listing():
             "is_approved": False,  # Needs admin approval
             "rating": 0.0,
             "review_count": 0,
-            "availability_calendar": {}
+            "availability_calendar": {},
+            # Add new required fields
+            "ai_generated_content": {},
+            "admin_notes": "",
+            "approved_at": None,
+            "approved_by": None
         }
         
         # Insert listing
@@ -237,13 +272,48 @@ def create_listing():
         
         return jsonify({
             "message": "Listing created successfully",
-            "listing_id": str(result.inserted_id)
+            "listing_id": str(result.inserted_id),
+            "coordinates": coordinates,
+            "formatted_location": formatted_location
         }), 201
         
     except Exception as e:
-        print(f"Error creating listing: {str(e)}")  # Debug log
+        print(f"Error creating listing: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+# Add new route for geocoding validation
+@listings_bp.route('/geocode', methods=['POST'])
+@jwt_required()
+def geocode_location():
+    """
+    Endpoint to validate and geocode a location before creating listing
+    """
+    try:
+        data = request.get_json()
+        location = data.get('location', '').strip()
+        
+        if not location:
+            return jsonify({"error": "Location is required"}), 400
+        
+        # Get coordinates from location
+        geocoding_result = get_coordinates_from_location(location)
+        
+        return jsonify({
+            "success": True,
+            "coordinates": {
+                "lat": geocoding_result['lat'],
+                "lng": geocoding_result['lng']
+            },
+            "formatted_address": geocoding_result['formatted_address'],
+            "place_id": geocoding_result.get('place_id'),
+            "types": geocoding_result.get('types', [])
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 400
 
 @listings_bp.route('/<listing_id>', methods=['PUT'])
 @jwt_required()
@@ -1059,3 +1129,57 @@ def create_fallback_visual_analysis():
         "suggested_amenities": ["traditional cooking", "local guide", "garden"],
         "confidence_score": 0.7
     }
+
+
+# Add new route for location suggestions
+@listings_bp.route('/location-suggestions', methods=['GET'])
+def get_location_suggestions_route():
+    """
+    Get location suggestions for autocomplete
+    """
+    try:
+        query = request.args.get('query', '').strip()
+        limit = int(request.args.get('limit', 5))
+        
+        if not query or len(query) < 2:
+            return jsonify({"suggestions": []}), 200
+        
+        suggestions = get_location_suggestions(query, limit)
+        
+        return jsonify({
+            "suggestions": suggestions,
+            "query": query
+        }), 200
+        
+    except Exception as e:
+        print(f"Location suggestions error: {e}")
+        return jsonify({
+            "suggestions": [],
+            "error": str(e)
+        }), 400
+
+# Add route for place details
+@listings_bp.route('/place-details', methods=['POST'])
+def get_place_details_route():
+    """
+    Get detailed place information from place_id
+    """
+    try:
+        data = request.get_json()
+        place_id = data.get('place_id')
+        
+        if not place_id:
+            return jsonify({"error": "Place ID is required"}), 400
+        
+        place_details = get_place_details(place_id)
+        
+        return jsonify({
+            "success": True,
+            "place_details": place_details
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 400
