@@ -124,6 +124,36 @@ export const listingsAPI = {
   updateAvailability: (id, data) => api.post(`/api/listings/${id}/availability`, data),
   getHostListings: (hostId, params) => api.get(`/api/listings/host/${hostId}`, { params }),
 
+   getLocationSuggestions: async (params) => {
+    try {
+      const response = await api.get('/api/listings/location-suggestions', { params });
+      return response;
+    } catch (error) {
+      console.error('Location suggestions failed:', error);
+      throw error;
+    }
+  },
+
+  getPlaceDetails: async (data) => {
+    try {
+      const response = await api.post('/api/listings/place-details', data);
+      return response;
+    } catch (error) {
+      console.error('Place details failed:', error);
+      throw error;
+    }
+  },
+
+  geocodeLocation: async (locationData) => {
+    try {
+      const response = await api.post('/api/listings/geocode', locationData);
+      return response;
+    } catch (error) {
+      console.error('Geocoding failed:', error);
+      throw error;
+    }
+  },
+
   // Advanced Search Methods
   semanticSearch: async (searchData) => {
     try {
