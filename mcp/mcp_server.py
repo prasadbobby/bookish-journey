@@ -13,7 +13,7 @@ from starlette.requests import Request
 import uvicorn
 
 # Configuration
-MONGO_URL = "mongodb+srv://bobby:bobby@cluster0.nvavp.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+MONGO_URL = "mongodb+srv://<username>:<password>@cluster.mongodb.net/villagestay?retryWrites=true&w=majority"
 DB_NAME = "villagestay"
 
 # MongoDB connection
