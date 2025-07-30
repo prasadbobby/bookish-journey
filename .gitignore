@@ -20,4 +20,8 @@ public/icons
 .env.local
 test/
 test.html
+offline-ai/
+.claude
+
+
 

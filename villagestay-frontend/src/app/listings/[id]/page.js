@@ -27,6 +27,7 @@ import { listingsAPI, bookingsAPI, impactAPI } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency, getImagePlaceholder, calculateNights, getAmenityIcon } from '@/lib/utils';
 import toast from 'react-hot-toast';
+import ReviewsList from '@/components/reviews/ReviewsList';
 
 const ListingDetailPage = () => {
   const params = useParams();
@@ -486,6 +487,13 @@ const handlePaymentSuccess = async (paymentDetails) => {
                   </div>
                 )}
 
+<div className="mt-12">
+  <ReviewsList 
+    listingId={listing.id} 
+    canRespond={user?.id === listing.host?.id}
+    hostId={listing.host?.id}
+  />
+</div>
                 {/* Reviews */}
                 {listing.reviews?.length > 0 && (
                   <div className="card p-6">

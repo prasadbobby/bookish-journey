@@ -623,3 +623,38 @@ def check_availability(listing_id, check_in, check_out):
     except Exception as e:
         print(f"Error checking availability: {str(e)}")
         return False
+
+
+# Add to routes/bookings.py or create routes/calls.py
+
+@bookings_bp.route('/initiate-call', methods=['POST'])
+@jwt_required()
+def initiate_booking_call():
+    try:
+        user_id = get_jwt_identity()
+        user = mongo.db.users.find_one({"_id": ObjectId(user_id)})
+        
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+            
+        if not user.get('phone'):
+            return jsonify({"error": "Phone number not found"}), 400
+        
+        # Log the call attempt
+        call_log = {
+            "user_id": ObjectId(user_id),
+            "phone_number": user['phone'],
+            "call_type": "booking_assistance",
+            "status": "initiated",
+            "created_at": datetime.utcnow()
+        }
+        
+        mongo.db.call_logs.insert_one(call_log)
+        
+        return jsonify({
+            "message": "Call initiated successfully",
+            "phone": user['phone']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

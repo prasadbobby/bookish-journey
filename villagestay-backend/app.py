@@ -12,7 +12,15 @@ def create_app():
     # Initialize extensions
     init_db(app)
     jwt = JWTManager(app)
-    CORS(app)
+    
+    # Configure CORS properly
+    CORS(app, resources={
+        r"/api/*": {
+            "origins": ["http://localhost:3000"],
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization"]
+        }
+    })
 
     # Create upload directory
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -24,7 +32,8 @@ def create_app():
     from routes.ai_assistant import ai_bp
     from routes.admin import admin_bp
     from routes.impact import impact_bp
-    from routes.ai_features import ai_features_bp  # New AI features
+    from routes.ai_features import ai_features_bp
+    from routes.reviews import reviews_bp  # Add this import
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(listings_bp, url_prefix='/api/listings')
@@ -32,7 +41,8 @@ def create_app():
     app.register_blueprint(ai_bp, url_prefix='/api/ai')
     app.register_blueprint(admin_bp, url_prefix='/api/admin')
     app.register_blueprint(impact_bp, url_prefix='/api/impact')
-    app.register_blueprint(ai_features_bp, url_prefix='/api/ai-features')  # New routes
+    app.register_blueprint(ai_features_bp, url_prefix='/api/ai-features')
+    app.register_blueprint(reviews_bp, url_prefix='/api/reviews')  # Add this line
 
     @app.route('/')
     def health_check():
@@ -43,7 +53,8 @@ def create_app():
                 "AI Village Story Generator",
                 "Voice-to-Listing Magic", 
                 "Cultural Concierge Chat",
-                "Property Image Analysis"
+                "Property Image Analysis",
+                "Reviews & Feedback System"  # Add this
             ]
         })
 

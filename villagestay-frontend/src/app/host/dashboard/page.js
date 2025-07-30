@@ -171,36 +171,44 @@ const HostDashboardPage = () => {
     }
   ];
 
-  const quickActions = [
-    {
-      title: 'Add New Listing',
-      description: 'Create a new property listing',
-      icon: PlusIcon,
-      href: '/host/create-listing',
-      color: 'from-green-500 to-green-600'
-    },
-    {
-      title: 'Voice Listing Magic',
-      description: 'Create listing using AI voice',
-      icon: MicrophoneIcon,
-      href: '/ai-features/voice-listing',
-      color: 'from-purple-500 to-purple-600'
-    },
-    {
-      title: 'Generate Village Story',
-      description: 'Create AI video for your property',
-      icon: VideoCameraIcon,
-      href: '/ai-features/village-stories',
-      color: 'from-blue-500 to-blue-600'
-    },
-    {
-      title: 'Manage Bookings',
-      description: 'View and manage reservations',
-      icon: CalendarDaysIcon,
-      href: '/host/bookings',
-      color: 'from-orange-500 to-orange-600'
-    }
-  ];
+const quickActions = [
+  {
+    title: 'Add New Listing',
+    description: 'Create a new property listing',
+    icon: PlusIcon,
+    href: '/host/create-listing',
+    color: 'from-green-500 to-green-600'
+  },
+  {
+    title: 'Voice Listing Magic',
+    description: 'Create listing using AI voice',
+    icon: MicrophoneIcon,
+    href: '/ai-features/voice-listing',
+    color: 'from-purple-500 to-purple-600'
+  },
+  {
+    title: 'Generate Village Story',
+    description: 'Create AI video for your property',
+    icon: VideoCameraIcon,
+    href: '/ai-features/village-stories',
+    color: 'from-blue-500 to-blue-600'
+  },
+  {
+    title: 'Manage Bookings',
+    description: 'View and manage reservations',
+    icon: CalendarDaysIcon,
+    href: '/host/bookings',
+    color: 'from-orange-500 to-orange-600'
+  },
+  // ADD THIS NEW ACTION
+  {
+    title: 'Reviews & Feedback',
+    description: 'Manage guest reviews and ratings',
+    icon: StarIcon,
+    href: '/host/reviews',
+    color: 'from-yellow-500 to-yellow-600'
+  }
+];
 
   return (
     <div className="min-h-screen village-bg pt-20">
