@@ -6,7 +6,11 @@ import { Toaster } from 'react-hot-toast';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import AppLayoutWithSideNav from '@/components/layout/AppLayoutWithSideNav';
+import dynamic from 'next/dynamic';
 
+const OfflineDetector = dynamic(() => import('@/components/layout/OfflineDetector'), {
+  ssr: false
+});
 export default function ClientLayout({ children }) {
   const pathname = usePathname();
   
@@ -27,6 +31,7 @@ export default function ClientLayout({ children }) {
 
   return (
     <AuthProvider>
+      <OfflineDetector />
       {isPublicRoute ? (
         // Regular layout for public pages only
         <div className="min-h-screen flex flex-col village-bg">

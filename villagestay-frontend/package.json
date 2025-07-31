@@ -40,7 +40,9 @@
     "swiper": "^11.2.10",
     "tailwind-merge": "^2.2.0",
     "three": "^0.178.0",
-    "workbox-webpack-plugin": "^7.3.0"
+    "workbox-webpack-plugin": "^7.3.0",
+    "@mlc-ai/web-llm": "^0.2.46",
+    "idb-keyval": "^6.2.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
