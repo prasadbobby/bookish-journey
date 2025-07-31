@@ -11,8 +11,6 @@ import random
 
 bookings_bp = Blueprint('bookings', __name__)
 
-# Add to bookings.py
-
 def generate_booking_reference():
     """Generate unique booking reference"""
     prefix = "VS"  # VillageStay prefix
@@ -42,7 +40,7 @@ def create_booking():
         if not listing:
             return jsonify({"error": "Listing not found"}), 404
         
-        if not listing['is_active'] or not listing['is_approved']:
+        if not listing.get('is_active', True) or not listing.get('is_approved', False):
             return jsonify({"error": "Listing is not available for booking"}), 400
         
         # Parse and validate dates
@@ -58,7 +56,7 @@ def create_booking():
         if check_in_date < datetime.now().replace(hour=0, minute=0, second=0, microsecond=0):
             return jsonify({"error": "Check-in date cannot be in the past"}), 400
         
-        # Check availability with better error messaging
+        # Check availability
         if not check_availability(data['listing_id'], check_in_date, check_out_date):
             return jsonify({
                 "error": "Selected dates are not available. Please choose different dates.",
@@ -66,8 +64,9 @@ def create_booking():
             }), 400
         
         # Validate guests
-        if data['guests'] > listing['max_guests']:
-            return jsonify({"error": f"Maximum {listing['max_guests']} guests allowed"}), 400
+        max_guests = listing.get('max_guests', 4)
+        if data['guests'] > max_guests:
+            return jsonify({"error": f"Maximum {max_guests} guests allowed"}), 400
         
         # Calculate pricing
         nights = (check_out_date - check_in_date).days
@@ -80,7 +79,7 @@ def create_booking():
         # Generate unique booking reference
         booking_reference = f"VS{datetime.now().strftime('%Y%m%d')}{random.randint(1000, 9999)}"
         
-        # Create booking document
+        # Create booking document with all required fields
         booking_doc = {
             "listing_id": ObjectId(data['listing_id']),
             "tourist_id": ObjectId(user_id),
@@ -100,13 +99,19 @@ def create_booking():
             "status": "pending",
             "payment_status": "unpaid",
             "payment_id": None,
-            "booking_reference": booking_reference
+            "booking_reference": booking_reference,
+            # Additional fields for WhatsApp bot compatibility
+            "guest_name": data.get('guest_name', user.get('full_name', '')),
+            "guest_email": data.get('guest_email', user.get('email', '')),
+            "guest_phone": data.get('guest_phone', user.get('phone', '')),
+            "tourist_phone": data.get('tourist_phone', ''),
+            "booking_source": data.get('booking_source', 'web_platform')
         }
         
         # Insert booking
         result = mongo.db.bookings.insert_one(booking_doc)
         
-        # Create payment (mock)
+        # Create payment
         from utils.payment_utils import create_payment
         payment_data = create_payment(
             total_amount,
@@ -137,8 +142,229 @@ def create_booking():
         
     except Exception as e:
         print(f"Booking creation error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": "Failed to create booking. Please try again."}), 500
 
+@bookings_bp.route('/', methods=['GET'])
+@jwt_required()
+def get_user_bookings():
+    try:
+        user_id = get_jwt_identity()
+        
+        # Get user details
+        user = mongo.db.users.find_one({"_id": ObjectId(user_id)})
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+        
+        # Get query parameters
+        page = int(request.args.get('page', 1))
+        limit = int(request.args.get('limit', 10))
+        status = request.args.get('status')
+        
+        print(f"Fetching bookings for user {user_id}, type: {user['user_type']}")
+        
+        # Build query based on user type
+        if user['user_type'] == 'tourist':
+            query = {"tourist_id": ObjectId(user_id)}
+        elif user['user_type'] == 'host':
+            query = {"host_id": ObjectId(user_id)}
+        else:
+            return jsonify({"error": "Invalid user type"}), 400
+        
+        # Add status filter if provided
+        if status:
+            query["status"] = status
+        
+        print(f"Query: {query}")
+        
+        # Execute query
+        skip = (page - 1) * limit
+        
+        bookings = list(mongo.db.bookings.find(query)
+                       .sort("created_at", -1)
+                       .skip(skip)
+                       .limit(limit))
+        
+        print(f"Found {len(bookings)} bookings")
+        
+        # Get total count
+        total_count = mongo.db.bookings.count_documents(query)
+        
+        # Format bookings
+        formatted_bookings = []
+        for booking in bookings:
+            try:
+                # Get listing info (handle missing listings gracefully)
+                listing = None
+                if 'listing_id' in booking:
+                    listing = mongo.db.listings.find_one({"_id": booking['listing_id']})
+                
+                # Get tourist info (handle missing tourists gracefully)
+                tourist = None
+                if 'tourist_id' in booking:
+                    tourist = mongo.db.users.find_one({"_id": booking['tourist_id']})
+                
+                # Get host info (handle missing hosts gracefully)
+                host = None
+                if 'host_id' in booking:
+                    host = mongo.db.users.find_one({"_id": booking['host_id']})
+                
+                # Format dates safely
+                check_in_str = booking['check_in'].strftime('%Y-%m-%d') if 'check_in' in booking and booking['check_in'] else 'N/A'
+                check_out_str = booking['check_out'].strftime('%Y-%m-%d') if 'check_out' in booking and booking['check_out'] else 'N/A'
+                created_at_str = booking['created_at'].isoformat() if 'created_at' in booking and booking['created_at'] else datetime.utcnow().isoformat()
+                
+                formatted_booking = {
+                    "id": str(booking['_id']),
+                    "booking_reference": booking.get('booking_reference', f"BK{str(booking['_id'])[-8:]}"),
+                    "check_in": check_in_str,
+                    "check_out": check_out_str,
+                    "guests": booking.get('guests', 1),
+                    "nights": booking.get('nights', 1),
+                    "total_amount": booking.get('total_amount', 0),
+                    "status": booking.get('status', 'pending'),
+                    "payment_status": booking.get('payment_status', 'unpaid'),
+                    "special_requests": booking.get('special_requests', ''),
+                    "guest_name": booking.get('guest_name', ''),
+                    "guest_email": booking.get('guest_email', ''),
+                    "guest_phone": booking.get('guest_phone', ''),
+                    "booking_source": booking.get('booking_source', 'web_platform'),
+                    "listing": {
+                        "id": str(listing['_id']),
+                        "title": listing['title'],
+                        "location": listing['location'],
+                        "images": listing.get('images', [])[:1] if listing.get('images') else []
+                    } if listing else {
+                        "id": "unknown",
+                        "title": "Property Details Unavailable",
+                        "location": "Unknown Location",
+                        "images": []
+                    },
+                    "tourist": {
+                        "id": str(tourist['_id']),
+                        "full_name": tourist['full_name'],
+                        "email": tourist['email'],
+                        "phone": tourist.get('phone', '')
+                    } if tourist else {
+                        "id": "unknown",
+                        "full_name": booking.get('guest_name', 'Guest'),
+                        "email": booking.get('guest_email', ''),
+                        "phone": booking.get('guest_phone', '')
+                    },
+                    "host": {
+                        "id": str(host['_id']),
+                        "full_name": host['full_name'],
+                        "email": host['email'],
+                        "phone": host.get('phone', '')
+                    } if host else {
+                        "id": "unknown",
+                        "full_name": "Host",
+                        "email": "",
+                        "phone": ""
+                    },
+                    "created_at": created_at_str
+                }
+                
+                formatted_bookings.append(formatted_booking)
+                
+            except Exception as booking_error:
+                print(f"Error formatting booking {booking.get('_id', 'unknown')}: {booking_error}")
+                # Continue with other bookings even if one fails
+                continue
+        
+        return jsonify({
+            "bookings": formatted_bookings,
+            "pagination": {
+                "page": page,
+                "limit": limit,
+                "total_count": total_count,
+                "total_pages": math.ceil(total_count / limit) if total_count > 0 else 0
+            }
+        }), 200
+        
+    except Exception as e:
+        print(f"Get bookings error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": "Failed to fetch bookings"}), 500
+
+@bookings_bp.route('/<booking_id>', methods=['GET'])
+@jwt_required()
+def get_booking(booking_id):
+    try:
+        user_id = get_jwt_identity()
+        
+        # Validate booking_id format
+        if not ObjectId.is_valid(booking_id):
+            return jsonify({"error": "Invalid booking ID format"}), 400
+        
+        # Get booking
+        booking = mongo.db.bookings.find_one({"_id": ObjectId(booking_id)})
+        if not booking:
+            return jsonify({"error": "Booking not found"}), 404
+        
+        # Verify access
+        user_object_id = ObjectId(user_id)
+        if (booking.get('tourist_id') != user_object_id and 
+            booking.get('host_id') != user_object_id):
+            return jsonify({"error": "Unauthorized"}), 403
+        
+        # Get related data safely
+        listing = mongo.db.listings.find_one({"_id": booking['listing_id']}) if booking.get('listing_id') else None
+        tourist = mongo.db.users.find_one({"_id": booking['tourist_id']}) if booking.get('tourist_id') else None
+        host = mongo.db.users.find_one({"_id": booking['host_id']}) if booking.get('host_id') else None
+        
+        formatted_booking = {
+            "id": str(booking['_id']),
+            "booking_reference": booking.get('booking_reference', f"BK{str(booking['_id'])[-8:]}"),
+            "check_in": booking['check_in'].strftime('%Y-%m-%d') if booking.get('check_in') else 'N/A',
+            "check_out": booking['check_out'].strftime('%Y-%m-%d') if booking.get('check_out') else 'N/A',
+            "guests": booking.get('guests', 1),
+            "nights": booking.get('nights', 1),
+            "base_amount": booking.get('base_amount', 0),
+            "platform_fee": booking.get('platform_fee', 0),
+            "community_contribution": booking.get('community_contribution', 0),
+            "total_amount": booking.get('total_amount', 0),
+            "status": booking.get('status', 'pending'),
+            "payment_status": booking.get('payment_status', 'unpaid'),
+            "special_requests": booking.get('special_requests', ''),
+            "guest_name": booking.get('guest_name', ''),
+            "guest_email": booking.get('guest_email', ''),
+            "guest_phone": booking.get('guest_phone', ''),
+            "listing": {
+                "id": str(listing['_id']),
+                "title": listing['title'],
+                "description": listing['description'],
+                "location": listing['location'],
+                "images": listing.get('images', []),
+                "amenities": listing.get('amenities', []),
+                "house_rules": listing.get('house_rules', []),
+                "coordinates": listing.get('coordinates', {})
+            } if listing else None,
+            "tourist": {
+                "id": str(tourist['_id']),
+                "full_name": tourist['full_name'],
+                "email": tourist['email'],
+                "phone": tourist.get('phone', '')
+            } if tourist else None,
+            "host": {
+                "id": str(host['_id']),
+                "full_name": host['full_name'],
+                "email": host['email'],
+                "phone": host.get('phone', '')
+            } if host else None,
+            "created_at": booking['created_at'].isoformat() if booking.get('created_at') else datetime.utcnow().isoformat(),
+            "updated_at": booking.get('updated_at', booking.get('created_at', datetime.utcnow())).isoformat()
+        }
+        
+        return jsonify(formatted_booking), 200
+        
+    except Exception as e:
+        print(f"Get booking error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": "Failed to fetch booking details"}), 500
 
 @bookings_bp.route('/<booking_id>/payment', methods=['POST'])
 @jwt_required()
@@ -148,34 +374,27 @@ def complete_payment(booking_id):
         data = request.get_json()
         
         print(f"Payment completion request for booking: {booking_id}")
-        print(f"User ID: {user_id}")
-        print(f"Payment data: {data}")
+        
+        # Validate booking_id format
+        if not ObjectId.is_valid(booking_id):
+            return jsonify({"error": "Invalid booking ID format"}), 400
         
         # Verify booking ownership
         booking = mongo.db.bookings.find_one({"_id": ObjectId(booking_id)})
         if not booking:
-            print(f"Booking not found: {booking_id}")
             return jsonify({"error": "Booking not found"}), 404
         
-        print(f"Found booking: {booking.get('booking_reference')}")
-        print(f"Booking tourist_id: {booking.get('tourist_id')}")
-        print(f"Current user_id: {user_id}")
-        
-        if str(booking['tourist_id']) != user_id:
-            print("Unauthorized access attempt")
+        if str(booking.get('tourist_id', '')) != user_id:
             return jsonify({"error": "Unauthorized"}), 403
         
         # Check if booking is still pending
-        if booking['status'] != 'pending':
-            print(f"Booking status is not pending: {booking['status']}")
-            return jsonify({"error": f"Booking is not in pending status. Current status: {booking['status']}"}), 400
+        if booking.get('status') != 'pending':
+            return jsonify({"error": f"Booking is not in pending status. Current status: {booking.get('status', 'unknown')}"}), 400
         
         # Get payment details
         payment_method = data.get('payment_method', 'upi')
         payment_signature = data.get('payment_signature', 'mock_signature')
         transaction_id = data.get('transaction_id', f"txn_{booking_id}")
-        
-        print(f"Processing payment with method: {payment_method}")
         
         # Mock payment verification - always successful for demo
         payment_verification = {
@@ -200,14 +419,10 @@ def complete_payment(booking_id):
             "updated_at": datetime.utcnow()
         }
         
-        print(f"Updating booking with data: {update_data}")
-        
         update_result = mongo.db.bookings.update_one(
             {"_id": ObjectId(booking_id)},
             {"$set": update_data}
         )
-        
-        print(f"Update result - matched: {update_result.matched_count}, modified: {update_result.modified_count}")
         
         if update_result.matched_count == 0:
             return jsonify({"error": "Failed to update booking"}), 500
@@ -215,11 +430,8 @@ def complete_payment(booking_id):
         # Block dates in listing availability
         try:
             block_dates(booking['listing_id'], booking['check_in'], booking['check_out'])
-            print("Successfully blocked dates")
         except Exception as e:
             print(f"Warning: Failed to block dates: {e}")
-        
-        print("Payment completion successful")
         
         return jsonify({
             "message": "Payment completed successfully",
@@ -234,166 +446,6 @@ def complete_payment(booking_id):
         traceback.print_exc()
         return jsonify({"error": "Payment processing failed"}), 500
 
-
-@bookings_bp.route('/', methods=['GET'])
-@jwt_required()
-def get_user_bookings():
-    try:
-        user_id = get_jwt_identity()
-        user = mongo.db.users.find_one({"_id": ObjectId(user_id)})
-        
-        # Get query parameters
-        page = int(request.args.get('page', 1))
-        limit = int(request.args.get('limit', 10))
-        status = request.args.get('status')
-        
-        # Build query based on user type
-        if user['user_type'] == 'tourist':
-            query = {"tourist_id": ObjectId(user_id)}
-        elif user['user_type'] == 'host':
-            query = {"host_id": ObjectId(user_id)}
-        else:
-            return jsonify({"error": "Invalid user type"}), 400
-        
-        # Add status filter if provided
-        if status:
-            query["status"] = status
-        
-        # Execute query
-        skip = (page - 1) * limit
-        
-        bookings = list(mongo.db.bookings.find(query)
-                       .sort("created_at", -1)
-                       .skip(skip)
-                       .limit(limit))
-        
-        # Get total count
-        total_count = mongo.db.bookings.count_documents(query)
-        
-        # Format bookings
-        formatted_bookings = []
-        for booking in bookings:
-            # Get listing info
-            listing = mongo.db.listings.find_one({"_id": booking['listing_id']})
-            
-            # Get tourist info
-            tourist = mongo.db.users.find_one({"_id": booking['tourist_id']})
-            
-            # Get host info
-            host = mongo.db.users.find_one({"_id": booking['host_id']})
-            
-            formatted_booking = {
-                "id": str(booking['_id']),
-                "booking_reference": booking['booking_reference'],
-                "check_in": booking['check_in'].strftime('%Y-%m-%d'),
-                "check_out": booking['check_out'].strftime('%Y-%m-%d'),
-                "guests": booking['guests'],
-                "nights": booking['nights'],
-                "total_amount": booking['total_amount'],
-                "status": booking['status'],
-                "payment_status": booking['payment_status'],
-                "special_requests": booking.get('special_requests', ''),
-                "listing": {
-                    "id": str(listing['_id']),
-                    "title": listing['title'],
-                    "location": listing['location'],
-                    "images": listing['images'][:1] if listing['images'] else []
-                } if listing else None,
-                "tourist": {
-                    "id": str(tourist['_id']),
-                    "full_name": tourist['full_name'],
-                    "email": tourist['email'],
-                    "phone": tourist.get('phone')
-                } if tourist else None,
-                "host": {
-                    "id": str(host['_id']),
-                    "full_name": host['full_name'],
-                    "email": host['email'],
-                    "phone": host.get('phone')
-                } if host else None,
-                "created_at": booking['created_at'].isoformat()
-            }
-            
-            formatted_bookings.append(formatted_booking)
-        
-        return jsonify({
-            "bookings": formatted_bookings,
-            "pagination": {
-                "page": page,
-                "limit": limit,
-                "total_count": total_count,
-                "total_pages": math.ceil(total_count / limit)
-            }
-        }), 200
-        
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@bookings_bp.route('/<booking_id>', methods=['GET'])
-@jwt_required()
-def get_booking(booking_id):
-    try:
-        user_id = get_jwt_identity()
-        
-        # Get booking
-        booking = mongo.db.bookings.find_one({"_id": ObjectId(booking_id)})
-        if not booking:
-            return jsonify({"error": "Booking not found"}), 404
-        
-        # Verify access
-        if str(booking['tourist_id']) != user_id and str(booking['host_id']) != user_id:
-            return jsonify({"error": "Unauthorized"}), 403
-        
-        # Get related data
-        listing = mongo.db.listings.find_one({"_id": booking['listing_id']})
-        tourist = mongo.db.users.find_one({"_id": booking['tourist_id']})
-        host = mongo.db.users.find_one({"_id": booking['host_id']})
-        
-        formatted_booking = {
-            "id": str(booking['_id']),
-            "booking_reference": booking['booking_reference'],
-            "check_in": booking['check_in'].strftime('%Y-%m-%d'),
-            "check_out": booking['check_out'].strftime('%Y-%m-%d'),
-            "guests": booking['guests'],
-            "nights": booking['nights'],
-            "base_amount": booking['base_amount'],
-            "platform_fee": booking['platform_fee'],
-            "community_contribution": booking['community_contribution'],
-            "total_amount": booking['total_amount'],
-            "status": booking['status'],
-            "payment_status": booking['payment_status'],
-            "special_requests": booking.get('special_requests', ''),
-            "listing": {
-                "id": str(listing['_id']),
-                "title": listing['title'],
-                "description": listing['description'],
-                "location": listing['location'],
-                "images": listing['images'],
-                "amenities": listing['amenities'],
-                "house_rules": listing.get('house_rules', []),
-                "coordinates": listing['coordinates']
-            } if listing else None,
-            "tourist": {
-                "id": str(tourist['_id']),
-                "full_name": tourist['full_name'],
-                "email": tourist['email'],
-                "phone": tourist.get('phone')
-            } if tourist else None,
-            "host": {
-                "id": str(host['_id']),
-                "full_name": host['full_name'],
-                "email": host['email'],
-                "phone": host.get('phone')
-            } if host else None,
-            "created_at": booking['created_at'].isoformat(),
-            "updated_at": booking['updated_at'].isoformat()
-        }
-        
-        return jsonify(formatted_booking), 200
-        
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
 @bookings_bp.route('/<booking_id>/cancel', methods=['POST'])
 @jwt_required()
 def cancel_booking(booking_id):
@@ -401,17 +453,23 @@ def cancel_booking(booking_id):
         user_id = get_jwt_identity()
         data = request.get_json()
         
+        # Validate booking_id format
+        if not ObjectId.is_valid(booking_id):
+            return jsonify({"error": "Invalid booking ID format"}), 400
+        
         # Get booking
         booking = mongo.db.bookings.find_one({"_id": ObjectId(booking_id)})
         if not booking:
             return jsonify({"error": "Booking not found"}), 404
         
         # Verify access (tourist or host can cancel)
-        if str(booking['tourist_id']) != user_id and str(booking['host_id']) != user_id:
+        user_object_id = ObjectId(user_id)
+        if (booking.get('tourist_id') != user_object_id and 
+            booking.get('host_id') != user_object_id):
             return jsonify({"error": "Unauthorized"}), 403
         
         # Check if booking can be cancelled
-        if booking['status'] in ['cancelled', 'completed']:
+        if booking.get('status') in ['cancelled', 'completed']:
             return jsonify({"error": "Booking cannot be cancelled"}), 400
         
         # Calculate refund amount based on cancellation policy
@@ -433,12 +491,8 @@ def cancel_booking(booking_id):
         )
         
         # Free up dates in listing availability
-        free_dates(booking['listing_id'], booking['check_in'], booking['check_out'])
-        
-        # Process refund if applicable
-        if refund_amount > 0:
-            # process_refund(booking['payment_id'], refund_amount)
-            pass
+        if booking.get('listing_id') and booking.get('check_in') and booking.get('check_out'):
+            free_dates(booking['listing_id'], booking['check_in'], booking['check_out'])
         
         return jsonify({
             "message": "Booking cancelled successfully",
@@ -446,7 +500,10 @@ def cancel_booking(booking_id):
         }), 200
         
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"Cancel booking error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": "Failed to cancel booking"}), 500
 
 @bookings_bp.route('/<booking_id>/complete', methods=['POST'])
 @jwt_required()
@@ -454,21 +511,25 @@ def complete_booking(booking_id):
     try:
         user_id = get_jwt_identity()
         
+        # Validate booking_id format
+        if not ObjectId.is_valid(booking_id):
+            return jsonify({"error": "Invalid booking ID format"}), 400
+        
         # Get booking
         booking = mongo.db.bookings.find_one({"_id": ObjectId(booking_id)})
         if not booking:
             return jsonify({"error": "Booking not found"}), 404
         
         # Verify host access
-        if str(booking['host_id']) != user_id:
+        if str(booking.get('host_id', '')) != user_id:
             return jsonify({"error": "Only host can complete booking"}), 403
         
         # Check if booking can be completed
-        if booking['status'] != 'confirmed':
+        if booking.get('status') != 'confirmed':
             return jsonify({"error": "Booking is not confirmed"}), 400
         
         # Check if check-out date has passed
-        if booking['check_out'] > datetime.utcnow():
+        if booking.get('check_out') and booking['check_out'] > datetime.utcnow():
             return jsonify({"error": "Cannot complete booking before check-out date"}), 400
         
         # Update booking status
@@ -483,74 +544,83 @@ def complete_booking(booking_id):
             }
         )
         
-        # Release host earnings
-        # release_host_earnings(booking['host_id'], booking['host_earnings'])
-        
         return jsonify({"message": "Booking completed successfully"}), 200
         
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"Complete booking error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": "Failed to complete booking"}), 500
 
-def generate_booking_reference():
-    """Generate unique booking reference"""
-    import random
-    import string
-    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
-
+# Utility functions
 def block_dates(listing_id, check_in, check_out):
     """Block dates in listing availability calendar"""
-    listing = mongo.db.listings.find_one({"_id": ObjectId(listing_id)})
-    if not listing:
-        return
-    
-    availability_calendar = listing.get('availability_calendar', {})
-    
-    current_date = check_in
-    while current_date < check_out:
-        date_str = current_date.strftime('%Y-%m-%d')
-        availability_calendar[date_str] = False
-        current_date += timedelta(days=1)
-    
-    mongo.db.listings.update_one(
-        {"_id": ObjectId(listing_id)},
-        {"$set": {"availability_calendar": availability_calendar}}
-    )
+    try:
+        listing = mongo.db.listings.find_one({"_id": ObjectId(listing_id)})
+        if not listing:
+            return
+        
+        availability_calendar = listing.get('availability_calendar', {})
+        
+        current_date = check_in
+        while current_date < check_out:
+            date_str = current_date.strftime('%Y-%m-%d')
+            availability_calendar[date_str] = False
+            current_date += timedelta(days=1)
+        
+        mongo.db.listings.update_one(
+            {"_id": ObjectId(listing_id)},
+            {"$set": {"availability_calendar": availability_calendar}}
+        )
+    except Exception as e:
+        print(f"Block dates error: {e}")
 
 def free_dates(listing_id, check_in, check_out):
     """Free up dates in listing availability calendar"""
-    listing = mongo.db.listings.find_one({"_id": ObjectId(listing_id)})
-    if not listing:
-        return
-    
-    availability_calendar = listing.get('availability_calendar', {})
-    
-    current_date = check_in
-    while current_date < check_out:
-        date_str = current_date.strftime('%Y-%m-%d')
-        if date_str in availability_calendar:
-            del availability_calendar[date_str]
-        current_date += timedelta(days=1)
-    
-    mongo.db.listings.update_one(
-        {"_id": ObjectId(listing_id)},
-        {"$set": {"availability_calendar": availability_calendar}}
-    )
+    try:
+        listing = mongo.db.listings.find_one({"_id": ObjectId(listing_id)})
+        if not listing:
+            return
+        
+        availability_calendar = listing.get('availability_calendar', {})
+        
+        current_date = check_in
+        while current_date < check_out:
+            date_str = current_date.strftime('%Y-%m-%d')
+            if date_str in availability_calendar:
+                del availability_calendar[date_str]
+            current_date += timedelta(days=1)
+        
+        mongo.db.listings.update_one(
+            {"_id": ObjectId(listing_id)},
+            {"$set": {"availability_calendar": availability_calendar}}
+        )
+    except Exception as e:
+        print(f"Free dates error: {e}")
 
 def calculate_refund_amount(booking, cancellation_date):
     """Calculate refund amount based on cancellation policy"""
-    days_until_checkin = (booking['check_in'] - cancellation_date).days
-    
-    if days_until_checkin >= 7:
-        return booking['total_amount']  # Full refund
-    elif days_until_checkin >= 3:
-        return booking['total_amount'] * 0.5  # 50% refund
-    else:
-        return 0  # No refund
+    try:
+        if not booking.get('check_in'):
+            return 0
+            
+        days_until_checkin = (booking['check_in'] - cancellation_date).days
+        total_amount = booking.get('total_amount', 0)
+        
+        if days_until_checkin >= 7:
+            return total_amount  # Full refund
+        elif days_until_checkin >= 3:
+            return total_amount * 0.5  # 50% refund
+        else:
+            return 0  # No refund
+    except Exception as e:
+        print(f"Refund calculation error: {e}")
+        return 0
 
 def check_availability(listing_id, check_in, check_out):
     """Check if listing is available for given dates"""
     try:
-        # Convert dates to datetime objects
+        # Convert dates to datetime objects if they're strings
         if isinstance(check_in, str):
             check_in_date = datetime.strptime(check_in, '%Y-%m-%d')
         else:
@@ -560,9 +630,6 @@ def check_availability(listing_id, check_in, check_out):
             check_out_date = datetime.strptime(check_out, '%Y-%m-%d')
         else:
             check_out_date = check_out
-        
-        print(f"Checking availability for listing {listing_id}")
-        print(f"Check-in: {check_in_date}, Check-out: {check_out_date}")
         
         # Check for existing confirmed bookings that overlap
         existing_bookings = mongo.db.bookings.find({
@@ -592,17 +659,12 @@ def check_availability(listing_id, check_in, check_out):
             ]
         })
         
-        conflicting_bookings = list(existing_bookings)
-        print(f"Found {len(conflicting_bookings)} conflicting bookings")
-        
-        if len(conflicting_bookings) > 0:
-            print("Dates not available - conflicts found")
+        if existing_bookings.count() > 0:
             return False
         
         # Check availability calendar (host-blocked dates)
         listing = mongo.db.listings.find_one({"_id": ObjectId(listing_id)})
         if not listing:
-            print("Listing not found")
             return False
         
         availability_calendar = listing.get('availability_calendar', {})
@@ -613,48 +675,11 @@ def check_availability(listing_id, check_in, check_out):
             date_str = current_date.strftime('%Y-%m-%d')
             # If date is explicitly blocked (False), not available
             if availability_calendar.get(date_str) == False:
-                print(f"Date {date_str} is blocked by host")
                 return False
             current_date += timedelta(days=1)
         
-        print("Dates are available")
         return True
         
     except Exception as e:
         print(f"Error checking availability: {str(e)}")
         return False
-
-
-# Add to routes/bookings.py or create routes/calls.py
-
-@bookings_bp.route('/initiate-call', methods=['POST'])
-@jwt_required()
-def initiate_booking_call():
-    try:
-        user_id = get_jwt_identity()
-        user = mongo.db.users.find_one({"_id": ObjectId(user_id)})
-        
-        if not user:
-            return jsonify({"error": "User not found"}), 404
-            
-        if not user.get('phone'):
-            return jsonify({"error": "Phone number not found"}), 400
-        
-        # Log the call attempt
-        call_log = {
-            "user_id": ObjectId(user_id),
-            "phone_number": user['phone'],
-            "call_type": "booking_assistance",
-            "status": "initiated",
-            "created_at": datetime.utcnow()
-        }
-        
-        mongo.db.call_logs.insert_one(call_log)
-        
-        return jsonify({
-            "message": "Call initiated successfully",
-            "phone": user['phone']
-        }), 200
-        
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
