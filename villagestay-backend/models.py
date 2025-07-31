@@ -56,15 +56,32 @@ class Booking:
         self.community_contribution = 0.0
 
 class Review:
-    def __init__(self, booking_id, reviewer_id, reviewee_id, rating, comment, review_type):
+    def __init__(self, booking_id, listing_id, reviewer_id, reviewee_id, rating, comment, review_type, categories=None):
         self.booking_id = booking_id
+        self.listing_id = listing_id
         self.reviewer_id = reviewer_id
         self.reviewee_id = reviewee_id
-        self.rating = rating
+        self.rating = rating  # Overall rating 1-5
         self.comment = comment
-        self.review_type = review_type  # 'host_to_tourist', 'tourist_to_host'
+        self.review_type = review_type  # 'tourist_to_host', 'host_to_tourist', 'tourist_to_listing'
+        self.categories = categories or {}  # Category-specific ratings (cleanliness, location, etc.)
         self.created_at = datetime.utcnow()
+        self.updated_at = datetime.utcnow()
         self.is_verified = False
+        self.helpful_votes = 0
+        self.response = None  # Host response to review
+        self.response_date = None
+        self.photos = []  # Review photos
+        self.status = 'active'  # 'active', 'hidden', 'flagged'
+
+
+class ReviewResponse:
+    def __init__(self, review_id, responder_id, response_text):
+        self.review_id = review_id
+        self.responder_id = responder_id
+        self.response_text = response_text
+        self.created_at = datetime.utcnow()
+        self.is_public = True
 
 class Experience:
     def __init__(self, host_id, listing_id, title, description, duration, price, category, max_participants):

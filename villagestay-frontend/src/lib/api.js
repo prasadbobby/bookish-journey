@@ -112,6 +112,15 @@ export const authAPI = {
   }),
 };
 
+export const reviewsAPI = {
+  create: (data) => api.post('/api/reviews/create', data),
+  getListingReviews: (listingId, params) => api.get(`/api/reviews/listing/${listingId}`, { params }),
+  getUserReviews: (userId, params) => api.get(`/api/reviews/user/${userId}`, { params }),
+  respondToReview: (reviewId, data) => api.post(`/api/reviews/${reviewId}/respond`, data),
+  markHelpful: (reviewId) => api.post(`/api/reviews/${reviewId}/helpful`),
+  canReviewBooking: (bookingId) => api.get(`/api/reviews/booking/${bookingId}/can-review`),
+};
+
 // Listings API
 export const listingsAPI = {
   getAll: (params) => api.get('/api/listings/', { params }),
@@ -453,4 +462,36 @@ export const streamingUtils = {
   }
 };
 
+
+// Add to src/lib/api.js
+
+export const callsAPI = {
+  initiateBookingCall: () => api.post('/api/bookings/initiate-call'),
+};
+
+// Then in the dashboard, replace the triggerBookingCall function with:
+const triggerBookingCall = async () => {
+  if (!user?.phone) {
+    toast.error('Phone number not found. Please update your profile.');
+    return;
+  }
+
+  setCallingInProgress(true);
+  
+  try {
+    // Optional: Log call in backend
+    await callsAPI.initiateBookingCall();
+    
+    // Show initial success message
+    toast.success(`🔄 Initiating call to ${user.phone}... Maya will call you in 10-15 seconds!`, {
+      duration: 5000
+    });
+
+    // Rest of the ElevenLabs API call remains the same...
+  } catch (error) {
+    toast.error(`❌ Failed to initiate call: ${error.message}`);
+  } finally {
+    setCallingInProgress(false);
+  }
+};
 export default api;
