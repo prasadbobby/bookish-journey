@@ -132,16 +132,26 @@ def get_listing_reviews(listing_id):
             {"$unwind": "$reviewer"},
             {
                 "$project": {
+                    "_id": {"$toString": "$_id"},  # Convert ObjectId to string
                     "rating": 1,
                     "comment": 1,
                     "categories": 1,
-                    "created_at": 1,
+                    "created_at": {"$dateToString": {"date": "$created_at", "format": "%Y-%m-%dT%H:%M:%S.%LZ"}},  # Convert date to string
                     "helpful_votes": 1,
                     "response": 1,
-                    "response_date": 1,
+                    "response_date": {
+                        "$cond": {
+                            "if": "$response_date",
+                            "then": {"$dateToString": {"date": "$response_date", "format": "%Y-%m-%dT%H:%M:%S.%LZ"}},
+                            "else": None
+                        }
+                    },
                     "photos": 1,
-                    "reviewer.full_name": 1,
-                    "reviewer.profile_image": 1
+                    "reviewer": {
+                        "_id": {"$toString": "$reviewer._id"},  # Convert reviewer ID to string
+                        "full_name": "$reviewer.full_name",
+                        "profile_image": "$reviewer.profile_image"
+                    }
                 }
             },
             {"$sort": dict(sort_criteria)} if sort_criteria else {"$sort": {"created_at": -1}},
@@ -175,6 +185,7 @@ def get_listing_reviews(listing_id):
     except Exception as e:
         print(f"Error getting listing reviews: {e}")
         return jsonify({"error": str(e)}), 500
+
 
 @reviews_bp.route('/user/<user_id>', methods=['GET'])
 def get_user_reviews(user_id):
@@ -215,16 +226,29 @@ def get_user_reviews(user_id):
             {"$unwind": "$listing"},
             {
                 "$project": {
+                    "_id": {"$toString": "$_id"},  # Convert ObjectId to string
                     "rating": 1,
                     "comment": 1,
                     "review_type": 1,
-                    "created_at": 1,
+                    "created_at": {"$dateToString": {"date": "$created_at", "format": "%Y-%m-%dT%H:%M:%S.%LZ"}},
                     "response": 1,
-                    "response_date": 1,
-                    "other_user.full_name": 1,
-                    "other_user.profile_image": 1,
-                    "listing.title": 1,
-                    "listing.images": {"$arrayElemAt": ["$listing.images", 0]}
+                    "response_date": {
+                        "$cond": {
+                            "if": "$response_date",
+                            "then": {"$dateToString": {"date": "$response_date", "format": "%Y-%m-%dT%H:%M:%S.%LZ"}},
+                            "else": None
+                        }
+                    },
+                    "other_user": {
+                        "_id": {"$toString": "$other_user._id"},
+                        "full_name": "$other_user.full_name",
+                        "profile_image": "$other_user.profile_image"
+                    },
+                    "listing": {
+                        "_id": {"$toString": "$listing._id"},
+                        "title": "$listing.title",
+                        "images": {"$arrayElemAt": ["$listing.images", 0]}
+                    }
                 }
             },
             {"$sort": {"created_at": -1}},
