@@ -57,7 +57,7 @@ const OfflineAIBot = () => {
         setDownloadProgress(100);
         
         console.log('✅ Phi-3.5-mini Offline AI Assistant Ready');
-        toast.success('🤖 AI Assistant Ready!', { duration: 3000 });
+        // toast.success('🤖 AI Assistant Ready!', { duration: 3000 });
         
       } catch (error) {
         console.error('AI initialization failed:', error);
@@ -231,7 +231,7 @@ Always prioritize user safety and provide authentic rural tourism guidance.`;
   const getStatusIcon = () => {
     if (modelStatus === 'downloading') return <ClockIcon className="w-4 h-4 text-yellow-500 animate-pulse" />;
     if (modelStatus === 'error') return <ExclamationTriangleIcon className="w-4 h-4 text-red-500" />;
-    if (modelStatus === 'ready') return <SparklesIcon className="w-4 h-4 text-green-500" />;
+    if (modelStatus === 'ready') return <SparklesIcon className="w-4 h-4 text-white-800" />;
     return <ClockIcon className="w-4 h-4 text-blue-500 animate-spin" />;
   };
 
