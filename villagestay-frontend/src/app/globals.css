@@ -292,3 +292,44 @@ html {
     background-position: 0% 50%;
   }
 }
+/* Offline AI Bot specific styles */
+.chat-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #10b981 #f1f5f9;
+}
+
+.chat-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.chat-scroll::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 2px;
+}
+
+.chat-scroll::-webkit-scrollbar-thumb {
+  background: #10b981;
+  border-radius: 2px;
+}
+
+.chat-scroll::-webkit-scrollbar-thumb:hover {
+  background: #059669;
+}
+
+/* Prevent text selection in chat buttons */
+.chat-button {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+/* Animation for model download progress */
+@keyframes downloadPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.download-progress {
+  animation: downloadPulse 2s infinite;
+}

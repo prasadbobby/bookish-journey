@@ -36,6 +36,11 @@ const Scene3DWrapper = dynamic(() => import("@/components/3d/Scene3DWrapper"), {
   loading: () => null,
 });
 
+const OfflineAIBot = dynamic(() => import('@/components/ai/OfflineAIBot'), {
+  ssr: false,
+  loading: () => null
+});
+
 const HomePage = () => {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [featuredListings, setFeaturedListings] = useState([]);
@@ -758,7 +763,7 @@ const HomePage = () => {
   onClose={() => setIsVideoModalOpen(false)}
   videos={villageStoryVideos}
 />
-
+<OfflineAIBot />
     </AppLayout>
   );
 };
