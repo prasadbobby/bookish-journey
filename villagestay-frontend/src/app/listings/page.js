@@ -70,7 +70,7 @@ const MapView = dynamic(() => import("@/components/map/MapView"), {
   ),
 });
 
-// Enhanced Advanced Search Component
+// Enhanced Advanced Search Component - FIXED UI WITH PROPER COLORS
 const AdvancedSearch = ({ onResults, loading, setLoading }) => {
   const [searchType, setSearchType] = useState("semantic");
   const [searchQuery, setSearchQuery] = useState("");
@@ -332,9 +332,9 @@ const AdvancedSearch = ({ onResults, loading, setLoading }) => {
 
   return (
     <div className="w-full max-w-4xl mx-auto">
-      {/* Search Type Selector */}
+      {/* Search Type Selector - FIXED COLORS */}
       <div className="flex justify-center mb-8">
-        <div className="bg-white/20 backdrop-blur-lg rounded-2xl p-2 shadow-lg border border-white/30 inline-flex">
+        <div className="bg-gray-800 rounded-2xl p-2 shadow-lg border border-gray-600 inline-flex">
           {[
             {
               value: "semantic",
@@ -366,8 +366,8 @@ const AdvancedSearch = ({ onResults, loading, setLoading }) => {
               onClick={() => setSearchType(type.value)}
               className={`flex items-center space-x-2 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
                 searchType === type.value
-                  ? "bg-white/90 text-gray-900 shadow-lg"
-                  : "text-white/90 hover:bg-white/20"
+                  ? "bg-white text-gray-900 shadow-lg"
+                  : "text-white hover:bg-gray-700"
               }`}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
@@ -379,7 +379,7 @@ const AdvancedSearch = ({ onResults, loading, setLoading }) => {
         </div>
       </div>
 
-      {/* Search Interface */}
+      {/* Search Interface - FIXED COLORS */}
       <AnimatePresence mode="wait">
         {searchType === "semantic" && (
           <motion.div
@@ -387,16 +387,16 @@ const AdvancedSearch = ({ onResults, loading, setLoading }) => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="bg-white/20 backdrop-blur-lg rounded-3xl p-8 shadow-xl border border-white/30"
+            className="bg-white rounded-3xl p-8 shadow-xl border border-gray-200"
           >
             <div className="text-center mb-6">
               <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
                 <SparklesIcon className="w-8 h-8 text-white" />
               </div>
-              <h3 className="text-2xl font-bold text-white mb-2">
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">
                 Semantic Search
               </h3>
-              <p className="text-white/80">
+              <p className="text-gray-600">
                 Search naturally - tell us what you're looking for
               </p>
             </div>
@@ -406,7 +406,7 @@ const AdvancedSearch = ({ onResults, loading, setLoading }) => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="E.g., 'Find peaceful places near water for meditation' or 'Rustic farmhouse with organic food'"
-                className="w-full px-6 py-4 bg-white/20 backdrop-blur-sm border border-white/30 rounded-2xl focus:ring-2 focus:ring-white/50 focus:border-white/50 transition-all duration-300 resize-none text-white placeholder-white/60"
+                className="w-full px-6 py-4 bg-gray-50 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300 resize-none text-gray-900 placeholder-gray-500"
                 rows={3}
               />
 
@@ -429,16 +429,16 @@ const AdvancedSearch = ({ onResults, loading, setLoading }) => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="bg-white/20 backdrop-blur-lg rounded-3xl p-8 shadow-xl border border-white/30"
+            className="bg-white rounded-3xl p-8 shadow-xl border border-gray-200"
           >
             <div className="text-center mb-6">
               <div className="w-16 h-16 bg-gradient-to-br from-pink-500 to-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
                 <HeartIcon className="w-8 h-8 text-white" />
               </div>
-              <h3 className="text-2xl font-bold text-white mb-2">
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">
                 Emotion-Based Search
               </h3>
-              <p className="text-white/80">
+              <p className="text-gray-600">
                 Find places that match your mood and feelings
               </p>
             </div>
@@ -450,17 +450,17 @@ const AdvancedSearch = ({ onResults, loading, setLoading }) => {
                   onClick={() => setSelectedEmotion(emotion.value)}
                   className={`p-6 rounded-2xl border-2 transition-all duration-300 text-left ${
                     selectedEmotion === emotion.value
-                      ? "border-white bg-white/20 shadow-lg"
-                      : "border-white/30 hover:border-white/50 hover:bg-white/10"
+                      ? "border-blue-500 bg-blue-50 shadow-lg"
+                      : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                   }`}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
                   <div className="text-3xl mb-2">{emotion.icon}</div>
-                  <div className="font-bold text-white mb-1">
+                  <div className="font-bold text-gray-900 mb-1">
                     {emotion.label}
                   </div>
-                  <div className="text-sm text-white/70">
+                  <div className="text-sm text-gray-600">
                     {emotion.description}
                   </div>
                 </motion.button>
@@ -487,29 +487,29 @@ const AdvancedSearch = ({ onResults, loading, setLoading }) => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="bg-white/20 backdrop-blur-lg rounded-3xl p-8 shadow-xl border border-white/30"
+            className="bg-white rounded-3xl p-8 shadow-xl border border-gray-200"
           >
             <div className="text-center mb-6">
               <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-violet-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
                 <PhotoIcon className="w-8 h-8 text-white" />
               </div>
-              <h3 className="text-2xl font-bold text-white mb-2">
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">
                 Visual Search
               </h3>
-              <p className="text-white/80">
+              <p className="text-gray-600">
                 Upload an image or describe what you're looking for
               </p>
             </div>
 
             {/* Mode Toggle */}
             <div className="flex justify-center mb-6">
-              <div className="bg-white/20 backdrop-blur-sm rounded-xl p-1 inline-flex">
+              <div className="bg-gray-100 rounded-xl p-1 inline-flex">
                 <motion.button
                   onClick={() => setImageUploadMode("upload")}
                   className={`px-6 py-2 rounded-lg font-medium transition-all duration-300 ${
                     imageUploadMode === "upload"
-                      ? "bg-white/30 text-white shadow-md"
-                      : "text-white/70 hover:text-white"
+                      ? "bg-white text-gray-900 shadow-md"
+                      : "text-gray-600 hover:text-gray-900"
                   }`}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
@@ -520,8 +520,8 @@ const AdvancedSearch = ({ onResults, loading, setLoading }) => {
                   onClick={() => setImageUploadMode("describe")}
                   className={`px-6 py-2 rounded-lg font-medium transition-all duration-300 ${
                     imageUploadMode === "describe"
-                      ? "bg-white/30 text-white shadow-md"
-                      : "text-white/70 hover:text-white"
+                      ? "bg-white text-gray-900 shadow-md"
+                      : "text-gray-600 hover:text-gray-900"
                   }`}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
@@ -554,13 +554,13 @@ const AdvancedSearch = ({ onResults, loading, setLoading }) => {
                       {!imagePreview ? (
                         <label
                           htmlFor="image-upload"
-                          className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-white/30 rounded-2xl cursor-pointer bg-white/10 hover:bg-white/20 transition-all duration-300"
+                          className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-gray-300 rounded-2xl cursor-pointer bg-gray-50 hover:bg-gray-100 transition-all duration-300"
                         >
-                          <PhotoIcon className="w-16 h-16 text-white/70 mb-4" />
-                          <p className="text-lg font-semibold text-white mb-2">
+                          <PhotoIcon className="w-16 h-16 text-gray-400 mb-4" />
+                          <p className="text-lg font-semibold text-gray-700 mb-2">
                             Click to upload an image
                           </p>
-                          <p className="text-sm text-white/70">
+                          <p className="text-sm text-gray-500">
                             PNG, JPG, JPEG up to 5MB
                           </p>
                         </label>
@@ -624,7 +624,7 @@ const AdvancedSearch = ({ onResults, loading, setLoading }) => {
                       value={imageDescription}
                       onChange={(e) => setImageDescription(e.target.value)}
                       placeholder="E.g., 'A traditional wooden house surrounded by green fields with mountains in the background' or 'Cozy cottage with a garden and stone walls'"
-                      className="w-full px-6 py-4 bg-white/20 backdrop-blur-sm border border-white/30 rounded-2xl focus:ring-2 focus:ring-white/50 focus:border-white/50 transition-all duration-300 resize-none text-white placeholder-white/60"
+                      className="w-full px-6 py-4 bg-gray-50 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-300 resize-none text-gray-900 placeholder-gray-500"
                       rows={4}
                     />
 
@@ -652,16 +652,16 @@ const AdvancedSearch = ({ onResults, loading, setLoading }) => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="bg-white/20 backdrop-blur-lg rounded-3xl p-8 shadow-xl border border-white/30"
+            className="bg-white rounded-3xl p-8 shadow-xl border border-gray-200"
           >
             <div className="text-center mb-6">
               <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
                 <FaceSmileIcon className="w-8 h-8 text-white" />
               </div>
-              <h3 className="text-2xl font-bold text-white mb-2">
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">
                 AI Smart Search
               </h3>
-              <p className="text-white/80">
+              <p className="text-gray-600">
                 Let AI automatically choose the best search method
               </p>
             </div>
@@ -672,7 +672,7 @@ const AdvancedSearch = ({ onResults, loading, setLoading }) => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Just tell us what you want - AI will figure out the rest!"
-                className="w-full px-6 py-4 bg-white/20 backdrop-blur-sm border border-white/30 rounded-2xl focus:ring-2 focus:ring-white/50 focus:border-white/50 transition-all duration-300 text-lg text-white placeholder-white/60"
+                className="w-full px-6 py-4 bg-gray-50 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-300 text-lg text-gray-900 placeholder-gray-500"
               />
 
               <motion.button
@@ -1213,6 +1213,11 @@ const ListingsPage = () => {
   const [hoveredCard, setHoveredCard] = useState(null);
   const [showMapView, setShowMapView] = useState(false);
 
+  // Weather prediction state - NEW FEATURE
+  const [weeklyWeatherData, setWeeklyWeatherData] = useState(null);
+  const [weeklyWeatherLoading, setWeeklyWeatherLoading] = useState(false);
+  const [showWeeklyWeather, setShowWeeklyWeather] = useState(false);
+
   // Advanced Search State
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
   const [advancedResults, setAdvancedResults] = useState([]);
@@ -1363,6 +1368,32 @@ const ListingsPage = () => {
     }
   };
 
+  // NEW: Weekly weather prediction function - PREDICT FOR NEXT WEEK
+  const fetchWeeklyWeatherPrediction = async () => {
+    if (!filters.location.trim()) {
+      toast.error("Please enter a location first");
+      return;
+    }
+
+    setWeeklyWeatherLoading(true);
+    try {
+      const response = await aiAPI.getWeeklyWeatherPrediction({
+        location: filters.location.trim(),
+      });
+      setWeeklyWeatherData(response);
+      setShowWeeklyWeather(true);
+      toast.success("📅 7-day weather prediction loaded!");
+    } catch (error) {
+      console.error("Weekly weather prediction error:", error);
+      const errorMessage =
+        error.response?.data?.error ||
+        "Unable to get weather prediction for this location";
+      toast.error(errorMessage);
+    } finally {
+      setWeeklyWeatherLoading(false);
+    }
+  };
+
   const handleWeatherEnhancedSearch = async () => {
     if (!filters.location.trim()) {
       toast.error("Please enter a location for smart search");
@@ -1496,46 +1527,49 @@ const ListingsPage = () => {
     (e) => {
       e.preventDefault();
       setShowWeatherSearch(false);
-      setAdvancedResults([]); // Clear advanced results
-      // Force refetch by updating lastFetchParams
-      lastFetchParams.current = "";
-      fetchListings();
-    },
-    [fetchListings]
-  );
+      // Clear advanced results
+     setAdvancedResults([]);
+     // Force refetch by updating lastFetchParams
+     lastFetchParams.current = "";
+     fetchListings();
+   },
+   [fetchListings]
+ );
 
-  const clearFilters = useCallback(() => {
-    setFilters({
-      search: "",
-      location: "",
-      property_type: "",
-      min_price: "",
-      max_price: "",
-      guests: "1",
-      check_in: "",
-      check_out: "",
-      sort_by: "rating",
-      order: "desc",
-    });
-    setShowWeatherSearch(false);
-    setWeatherData(null);
-    setAdvancedResults([]);
-    setSearchMetadata(null);
-    // Reset pagination
-    setPagination((prev) => ({ ...prev, page: 1 }));
-  }, []);
+ const clearFilters = useCallback(() => {
+   setFilters({
+     search: "",
+     location: "",
+     property_type: "",
+     min_price: "",
+     max_price: "",
+     guests: "1",
+     check_in: "",
+     check_out: "",
+     sort_by: "rating",
+     order: "desc",
+   });
+   setShowWeatherSearch(false);
+   setWeatherData(null);
+   setAdvancedResults([]);
+   setSearchMetadata(null);
+   setWeeklyWeatherData(null);
+   setShowWeeklyWeather(false);
+   // Reset pagination
+   setPagination((prev) => ({ ...prev, page: 1 }));
+ }, []);
 
-  const toggleFavorite = useCallback((listingId) => {
-    setFavorites((prev) => {
-      const newFavorites = new Set(prev);
-      if (newFavorites.has(listingId)) {
-        newFavorites.delete(listingId);
-        toast.success("💔 Removed from favorites");
-      } else {
-        newFavorites.add(listingId);
-        toast.success("❤️ Added to favorites");
-      }
-      return newFavorites;
+ const toggleFavorite = useCallback((listingId) => {
+   setFavorites((prev) => {
+     const newFavorites = new Set(prev);
+     if (newFavorites.has(listingId)) {
+       newFavorites.delete(listingId);
+       toast.success("💔 Removed from favorites");
+     } else {
+       newFavorites.add(listingId);
+       toast.success("❤️ Added to favorites");
+     }
+     return newFavorites;
    });
  }, []);
 
@@ -1815,7 +1849,7 @@ const ListingsPage = () => {
                      </div>
                    </div>
 
-                   {/* Weather Integration Section */}
+                   {/* Weather Integration Section - WITH PREDICT BUTTON */}
                    {filters.location && (
                      <motion.div
                        initial={{ opacity: 0, height: 0 }}
@@ -1829,34 +1863,59 @@ const ListingsPage = () => {
                              <span>Weather Intelligence for {filters.location}</span>
                            </h3>
 
-                           <motion.button
-                             type="button"
-                             onClick={fetchWeatherRecommendations}
-                             disabled={weatherLoading}
-                             className="flex items-center space-x-2 px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-300/30 text-gray-700 rounded-xl transition-all duration-300 backdrop-blur-sm"
-                             whileHover={{ scale: 1.05 }}
-                             whileTap={{ scale: 0.95 }}
-                           >
-                             {weatherLoading ? (
-                               <motion.div
-                                 animate={{ rotate: 360 }}
-                                 transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                               >
-                                 <ArrowPathIcon className="w-5 h-5" />
-                               </motion.div>
-                             ) : (
-                               <CloudIcon className="w-5 h-5" />
-                             )}
-                             <span className="font-medium">Get Weather</span>
-                           </motion.button>
+                           {/* BOTH BUTTONS SIDE BY SIDE */}
+                           <div className="flex items-center space-x-3">
+                             <motion.button
+                               type="button"
+                               onClick={fetchWeatherRecommendations}
+                               disabled={weatherLoading}
+                               className="flex items-center space-x-2 px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-300/30 text-gray-700 rounded-xl transition-all duration-300 backdrop-blur-sm"
+                               whileHover={{ scale: 1.05 }}
+                               whileTap={{ scale: 0.95 }}
+                             >
+                               {weatherLoading ? (
+                                 <motion.div
+                                   animate={{ rotate: 360 }}
+                                   transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                 >
+                                   <ArrowPathIcon className="w-5 h-5" />
+                                 </motion.div>
+                               ) : (
+                                 <CloudIcon className="w-5 h-5" />
+                               )}
+                               <span className="font-medium">Get Weather</span>
+                             </motion.button>
+
+                             {/* PREDICT FOR NEXT WEEK BUTTON */}
+                             <motion.button
+                               type="button"
+                               onClick={fetchWeeklyWeatherPrediction}
+                               disabled={weeklyWeatherLoading}
+                               className="flex items-center space-x-2 px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-300/30 text-gray-700 rounded-xl transition-all duration-300 backdrop-blur-sm"
+                               whileHover={{ scale: 1.05 }}
+                               whileTap={{ scale: 0.95 }}
+                             >
+                               {weeklyWeatherLoading ? (
+                                 <motion.div
+                                   animate={{ rotate: 360 }}
+                                   transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                 >
+                                   <ArrowPathIcon className="w-5 h-5" />
+                                 </motion.div>
+                               ) : (
+                                 <CalendarDaysIcon className="w-5 h-5" />
+                               )}
+                               <span className="font-medium">Predict for Next Week</span>
+                             </motion.button>
+                           </div>
                          </div>
 
-                         {/* Weather Display */}
+                         {/* Current Weather Display - EXACTLY AS REQUESTED */}
                          {weatherData && (
                            <motion.div
                              initial={{ opacity: 0, y: 20 }}
                              animate={{ opacity: 1, y: 0 }}
-                             className="bg-white/20 backdrop-blur-xl rounded-2xl border border-white/30 p-6"
+                             className="bg-white/20 backdrop-blur-xl rounded-2xl border border-white/30 p-6 mb-6"
                            >
                              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                {/* Current Weather */}
@@ -1903,7 +1962,7 @@ const ListingsPage = () => {
                                  </div>
                                </div>
 
-                               {/* Recommended Activities */}
+                               {/* Recommended Activities - EXACTLY AS REQUESTED */}
                                <div>
                                  <h4 className="font-bold text-gray-800 mb-3 text-lg flex items-center space-x-1">
                                    <span>🎯</span>
@@ -1935,6 +1994,108 @@ const ListingsPage = () => {
                                  <p className="text-gray-800 font-medium text-center">
                                    💡 {getWeatherAdvice(weatherData.current_weather).message}
                                  </p>
+                               </div>
+                             )}
+                           </motion.div>
+                         )}
+
+                         {/* Weekly Weather Prediction Display - SAME CARD DESIGN */}
+                         {showWeeklyWeather && weeklyWeatherData && (
+                           <motion.div
+                             initial={{ opacity: 0, y: 20 }}
+                             animate={{ opacity: 1, y: 0 }}
+                             className="bg-white/20 backdrop-blur-xl rounded-2xl border border-white/30 p-6"
+                           >
+                             <div className="flex items-center justify-between mb-6">
+                               <h4 className="font-bold text-gray-800 text-xl flex items-center space-x-2">
+                                 <CalendarDaysIcon className="w-6 h-6" />
+                                 <span>7-Day Weather Prediction</span>
+                               </h4>
+                               <motion.button
+                                 onClick={() => setShowWeeklyWeather(false)}
+                                 className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-all duration-300"
+                                 whileHover={{ scale: 1.1 }}
+                                 whileTap={{ scale: 0.9 }}
+                               >
+                                 <XMarkIcon className="w-5 h-5" />
+                               </motion.button>
+                             </div>
+
+                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                               {weeklyWeatherData.weekly_predictions?.map((day, index) => (
+                                 <motion.div
+                                   key={day.date}
+                                   initial={{ opacity: 0, y: 20 }}
+                                   animate={{ opacity: 1, y: 0 }}
+                                   transition={{ delay: index * 0.1 }}
+                                   className="bg-white/30 backdrop-blur-sm rounded-xl p-4 border border-white/40"
+                                 >
+                                   <div className="text-center mb-4">
+                                     <div className="text-sm font-medium text-gray-700 mb-1">
+                                       {day.day_name}
+                                     </div>
+                                     <div className="text-xs text-gray-600 mb-2">
+                                       {new Date(day.date).toLocaleDateString()}
+                                     </div>
+                                     <div className="text-4xl mb-2">
+                                       {getWeatherIcon(day.main, day.avg_temp)}
+                                     </div>
+                                     <div className="text-lg font-bold text-gray-800">
+                                       {day.temp_max}°/{day.temp_min}°C
+                                     </div>
+                                     <div className="text-xs text-gray-600 capitalize">
+                                       {day.description}
+                                     </div>
+                                   </div>
+
+                                   {/* Best Activities for the Day */}
+                                   <div className="space-y-2">
+                                     <div className="text-xs font-semibold text-gray-700 mb-2">
+                                       🎯 Best Activities:
+                                     </div>
+                                     {day.recommendations?.slice(0, 2).map((rec, i) => (
+                                       <div key={i} className="text-xs text-gray-600 flex items-center space-x-1">
+                                         <span className="text-sm">{getCategoryIcon(rec.category)}</span>
+                                         <span>{rec.activity}</span>
+                                       </div>
+                                     ))}
+                                   </div>
+
+                                   {/* Weather Advice */}
+                                   {day.weather_advice && (
+                                     <div className="mt-3 p-2 bg-white/20 rounded-lg">
+                                       <div className="text-xs text-gray-700 text-center">
+                                         💡 {day.weather_advice.message}
+                                       </div>
+                                     </div>
+                                   )}
+                                 </motion.div>
+                               ))}
+                             </div>
+
+                             {/* Best Days Summary */}
+                             {weeklyWeatherData.best_days && (
+                               <div className="mt-6 p-4 bg-white/20 backdrop-blur-sm rounded-xl border border-white/30">
+                                 <h5 className="font-bold text-gray-800 mb-3 text-center">
+                                   🌟 Best Days for Specific Activities
+                                 </h5>
+                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                                   {Object.entries(weeklyWeatherData.best_days).map(([activity, day]) => (
+                                     day && (
+                                       <div key={activity} className="text-center">
+                                         <div className="font-semibold text-gray-800 capitalize mb-1">
+                                           {getCategoryIcon(activity)} {activity}
+                                         </div>
+                                         <div className="text-gray-600">
+                                           {day.day_name}
+                                         </div>
+                                         <div className="text-xs text-gray-500">
+                                           {day.temp_max}°/{day.temp_min}°C
+                                         </div>
+                                       </div>
+                                     )
+                                   ))}
+                                 </div>
                                </div>
                              )}
                            </motion.div>
@@ -2137,7 +2298,7 @@ const ListingsPage = () => {
            )}
          </AnimatePresence>
 
-         {/* Advanced Search Modal - Home Page Colors */}
+         {/* Advanced Search Modal - FIXED UI WITH PROPER WHITE BACKGROUND */}
          <AnimatePresence>
            {showAdvancedSearch && (
              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -2145,10 +2306,10 @@ const ListingsPage = () => {
                  initial={{ opacity: 0, scale: 0.95, y: 20 }}
                  animate={{ opacity: 1, scale: 1, y: 0 }}
                  exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                 className="bg-gradient-to-br from-green-50 via-blue-50 to-purple-50 rounded-3xl max-w-6xl w-full max-h-[90vh] overflow-hidden shadow-2xl p-1 border border-white/20"
+                 className="bg-white rounded-3xl max-w-6xl w-full max-h-[90vh] overflow-hidden shadow-2xl"
                  onClick={(e) => e.stopPropagation()}
                >
-                 <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-8 h-full overflow-y-auto">
+                 <div className="p-8 h-full overflow-y-auto">
                    <div className="flex items-center justify-between mb-8">
                      <h2 className="text-3xl font-bold text-gray-900">Advanced AI Search</h2>
                      <motion.button
@@ -2516,117 +2677,117 @@ const ListingsPage = () => {
                  )}
                </div>
 
-               {/* Enhanced Pagination */}
-               {pagination.total_pages > 1 &&
-                 !advancedResults.length &&
-                 !showWeatherSearch && (
-                   <div className="mt-16 flex justify-center">
-                     <div className="flex items-center space-x-3">
-                       <motion.button
-                         onClick={() =>
-                           setPagination((prev) => ({
-                             ...prev,
-                             page: prev.page - 1,
-                           }))
-                         }
-                         disabled={pagination.page === 1}
-                         className="px-6 py-3 text-sm border border-gray-300 rounded-xl hover:bg-gray-50 disabled:opacity-50 font-medium transition-all duration-300"
-                         whileHover={{ scale: 1.05 }}
-                         whileTap={{ scale: 0.95 }}
-                       >
-                         ← Previous
-                       </motion.button>
+              {/* Enhanced Pagination */}
+              {pagination.total_pages > 1 &&
+                !advancedResults.length &&
+                !showWeatherSearch && (
+                  <div className="mt-16 flex justify-center">
+                    <div className="flex items-center space-x-3">
+                      <motion.button
+                        onClick={() =>
+                          setPagination((prev) => ({
+                            ...prev,
+                            page: prev.page - 1,
+                          }))
+                        }
+                        disabled={pagination.page === 1}
+                        className="px-6 py-3 text-sm border border-gray-300 rounded-xl hover:bg-gray-50 disabled:opacity-50 font-medium transition-all duration-300"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        ← Previous
+                      </motion.button>
 
-                       {[...Array(Math.min(pagination.total_pages, 5))].map(
-                         (_, i) => {
-                           const pageNum =
-                             pagination.page <= 3
-                               ? i + 1
-                               : pagination.page - 2 + i;
-                           if (pageNum > pagination.total_pages) return null;
+                      {[...Array(Math.min(pagination.total_pages, 5))].map(
+                        (_, i) => {
+                          const pageNum =
+                            pagination.page <= 3
+                              ? i + 1
+                              : pagination.page - 2 + i;
+                          if (pageNum > pagination.total_pages) return null;
 
-                           return (
-                             <motion.button
-                               key={pageNum}
-                               onClick={() =>
-                                 setPagination((prev) => ({
-                                   ...prev,
-                                   page: pageNum,
-                                 }))
-                               }
-                               className={`px-4 py-3 text-sm rounded-xl font-medium transition-all duration-300 ${
-                                 pageNum === pagination.page
-                                   ? "bg-gradient-to-r from-green-500 to-blue-600 text-white shadow-lg"
-                                   : "border border-gray-300 hover:bg-gray-50 text-gray-700"
-                               }`}
-                               whileHover={{ scale: 1.05 }}
-                               whileTap={{ scale: 0.95 }}
-                             >
-                               {pageNum}
-                             </motion.button>
-                           );
-                         }
-                       )}
+                          return (
+                            <motion.button
+                              key={pageNum}
+                              onClick={() =>
+                                setPagination((prev) => ({
+                                  ...prev,
+                                  page: pageNum,
+                                }))
+                              }
+                              className={`px-4 py-3 text-sm rounded-xl font-medium transition-all duration-300 ${
+                                pageNum === pagination.page
+                                  ? "bg-gradient-to-r from-green-500 to-blue-600 text-white shadow-lg"
+                                  : "border border-gray-300 hover:bg-gray-50 text-gray-700"
+                              }`}
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                            >
+                              {pageNum}
+                            </motion.button>
+                          );
+                        }
+                      )}
 
-                       <motion.button
-                         onClick={() =>
-                           setPagination((prev) => ({
-                             ...prev,
-                             page: prev.page + 1,
-                           }))
-                         }
-                         disabled={pagination.page === pagination.total_pages}
-                         className="px-6 py-3 text-sm border border-gray-300 rounded-xl hover:bg-gray-50 disabled:opacity-50 font-medium transition-all duration-300"
-                         whileHover={{ scale: 1.05 }}
-                         whileTap={{ scale: 0.95 }}
-                       >
-                         Next →
-                       </motion.button>
-                     </div>
-                   </div>
-                 )}
-             </>
-           ) : (
-             <div className="text-center py-20">
-               <motion.div
-                 initial={{ opacity: 0, y: 30 }}
-                 animate={{ opacity: 1, y: 0 }}
-                 className="max-w-md mx-auto"
-               >
-                 <div className="w-32 h-32 bg-gradient-to-br from-gray-200 to-gray-300 rounded-full flex items-center justify-center mx-auto mb-8">
-                   <MagnifyingGlassIcon className="w-16 h-16 text-gray-400" />
-                 </div>
-                 <h3 className="text-2xl font-bold text-gray-900 mb-4">
-                   No villages found
-                 </h3>
-                 <p className="text-gray-600 mb-8 leading-relaxed">
-                   We couldn't find any properties matching your criteria. Try
-                   adjusting your search or filters.
-                 </p>
-                 <motion.button
-                   onClick={clearFilters}
-                   className="bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white px-8 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
-                   whileHover={{ scale: 1.05 }}
-                   whileTap={{ scale: 0.95 }}
-                 >
-                   🔄 Clear All Filters
-                 </motion.button>
-               </motion.div>
-             </div>
-           )}
-         </div>
-       </div>
-       
-       <MapView 
-         listings={displayListings}
-         isOpen={showMapView}
-         onClose={() => setShowMapView(false)}
-         filters={filters}
-         searchMetadata={searchMetadata}
-       />
-     </AppLayout>
-   </Providers>
- );
+                      <motion.button
+                        onClick={() =>
+                          setPagination((prev) => ({
+                            ...prev,
+                            page: prev.page + 1,
+                          }))
+                        }
+                        disabled={pagination.page === pagination.total_pages}
+                        className="px-6 py-3 text-sm border border-gray-300 rounded-xl hover:bg-gray-50 disabled:opacity-50 font-medium transition-all duration-300"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        Next →
+                      </motion.button>
+                    </div>
+                  </div>
+                )}
+            </>
+          ) : (
+            <div className="text-center py-20">
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="max-w-md mx-auto"
+              >
+                <div className="w-32 h-32 bg-gradient-to-br from-gray-200 to-gray-300 rounded-full flex items-center justify-center mx-auto mb-8">
+                  <MagnifyingGlassIcon className="w-16 h-16 text-gray-400" />
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-4">
+                  No villages found
+                </h3>
+                <p className="text-gray-600 mb-8 leading-relaxed">
+                  We couldn't find any properties matching your criteria. Try
+                  adjusting your search or filters.
+                </p>
+                <motion.button
+                  onClick={clearFilters}
+                  className="bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white px-8 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  🔄 Clear All Filters
+                </motion.button>
+              </motion.div>
+            </div>
+          )}
+        </div>
+      </div>
+      
+      <MapView 
+        listings={displayListings}
+        isOpen={showMapView}
+        onClose={() => setShowMapView(false)}
+        filters={filters}
+        searchMetadata={searchMetadata}
+      />
+    </AppLayout>
+  </Providers>
+);
 };
 
 export default ListingsPage;

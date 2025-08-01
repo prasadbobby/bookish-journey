@@ -65,7 +65,7 @@ const SideNav = () => {
               href: '/ai-features/voice-listing',
               icon: MicrophoneIcon,
               description: 'Create listings with voice',
-              badge: 'NEW',
+              badge: '',
               allowedRoles: ['host']
             },
             { 
@@ -73,7 +73,7 @@ const SideNav = () => {
               href: '/ai-features/village-stories',
               icon: VideoCameraIcon,
               description: 'Generate promotional videos',
-              badge: 'HOT',
+              badge: '',
               allowedRoles: ['host']
             },
             { 
