@@ -287,13 +287,15 @@ def create_listing():
 
 
 
-# Add new route for geocoding validation
-@listings_bp.route('/geocode', methods=['POST'])
+@listings_bp.route('/geocode', methods=['POST', 'OPTIONS'])
 @jwt_required()
 def geocode_location():
     """
     Endpoint to validate and geocode a location before creating listing
     """
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200
+        
     try:
         data = request.get_json()
         location = data.get('location', '').strip()
@@ -301,8 +303,12 @@ def geocode_location():
         if not location:
             return jsonify({"error": "Location is required"}), 400
         
+        print(f"🌍 Geocoding location: {location}")
+        
         # Get coordinates from location
         geocoding_result = get_coordinates_from_location(location)
+        
+        print(f"✅ Geocoding successful: {geocoding_result}")
         
         return jsonify({
             "success": True,
@@ -316,10 +322,12 @@ def geocode_location():
         }), 200
         
     except Exception as e:
+        print(f"❌ Geocoding error: {str(e)}")
         return jsonify({
             "success": False,
             "error": str(e)
         }), 400
+
 
 @listings_bp.route('/<listing_id>', methods=['PUT'])
 @jwt_required()
@@ -1164,19 +1172,26 @@ def create_fallback_visual_analysis():
 
 
 # Add new route for location suggestions
-@listings_bp.route('/location-suggestions', methods=['GET'])
+@listings_bp.route('/location-suggestions', methods=['GET', 'OPTIONS'])
 def get_location_suggestions_route():
     """
     Get location suggestions for autocomplete
     """
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200
+        
     try:
         query = request.args.get('query', '').strip()
-        limit = int(request.args.get('limit', 5))
+        limit = int(request.args.get('limit', 6))
         
         if not query or len(query) < 2:
             return jsonify({"suggestions": []}), 200
         
+        print(f"🔍 Getting location suggestions for: {query}")
+        
         suggestions = get_location_suggestions(query, limit)
+        
+        print(f"✅ Found {len(suggestions)} suggestions")
         
         return jsonify({
             "suggestions": suggestions,
@@ -1184,18 +1199,22 @@ def get_location_suggestions_route():
         }), 200
         
     except Exception as e:
-        print(f"Location suggestions error: {e}")
+        print(f"❌ Location suggestions error: {e}")
         return jsonify({
             "suggestions": [],
             "error": str(e)
         }), 400
 
+
 # Add route for place details
-@listings_bp.route('/place-details', methods=['POST'])
+@listings_bp.route('/place-details', methods=['POST', 'OPTIONS'])
 def get_place_details_route():
     """
     Get detailed place information from place_id
     """
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200
+        
     try:
         data = request.get_json()
         place_id = data.get('place_id')
@@ -1203,7 +1222,11 @@ def get_place_details_route():
         if not place_id:
             return jsonify({"error": "Place ID is required"}), 400
         
+        print(f"📍 Getting place details for: {place_id}")
+        
         place_details = get_place_details(place_id)
+        
+        print(f"✅ Place details retrieved successfully")
         
         return jsonify({
             "success": True,
@@ -1211,11 +1234,11 @@ def get_place_details_route():
         }), 200
         
     except Exception as e:
+        print(f"❌ Place details error: {str(e)}")
         return jsonify({
             "success": False,
             "error": str(e)
-        }), 400
-    
+        }), 400 
 
 @listings_bp.route('/host/<host_id>/stats', methods=['GET'])
 @jwt_required()
