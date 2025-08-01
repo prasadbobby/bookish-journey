@@ -36,9 +36,35 @@ class Listing:
         self.rating = 0.0
         self.review_count = 0
         self.ai_generated_content = {}
+        self.listing_category = 'homestay'  # 'homestay' or 'experience'
+
+class Experience:
+    def __init__(self, host_id, title, description, location, price_per_person, category, duration, max_participants, images, coordinates):
+        self.host_id = host_id
+        self.title = title
+        self.description = description
+        self.location = location
+        self.price_per_person = price_per_person
+        self.category = category  # 'cultural', 'adventure', 'culinary', 'spiritual', 'farming', 'craft'
+        self.duration = duration  # in hours
+        self.max_participants = max_participants
+        self.images = images
+        self.coordinates = coordinates
+        self.created_at = datetime.utcnow()
+        self.is_active = True
+        self.is_approved = False
+        self.availability_schedule = {}  # Weekly schedule
+        self.inclusions = []
+        self.requirements = []
+        self.difficulty_level = 'easy'  # 'easy', 'moderate', 'challenging'
+        self.age_restrictions = {'min_age': 0, 'max_age': 100}
+        self.cancellation_policy = 'flexible'
+        self.rating = 0.0
+        self.review_count = 0
+        self.listing_category = 'experience'
 
 class Booking:
-    def __init__(self, listing_id, tourist_id, host_id, check_in, check_out, guests, total_amount):
+    def __init__(self, listing_id, tourist_id, host_id, check_in, check_out, guests, total_amount, listing_type='homestay'):
         self.listing_id = listing_id
         self.tourist_id = tourist_id
         self.host_id = host_id
@@ -46,6 +72,7 @@ class Booking:
         self.check_out = check_out
         self.guests = guests
         self.total_amount = total_amount
+        self.listing_type = listing_type  # 'homestay' or 'experience'
         self.created_at = datetime.utcnow()
         self.status = 'pending'  # 'pending', 'confirmed', 'cancelled', 'completed'
         self.payment_status = 'unpaid'  # 'unpaid', 'paid', 'refunded'
@@ -54,6 +81,10 @@ class Booking:
         self.host_earnings = 0.0
         self.platform_fee = 0.0
         self.community_contribution = 0.0
+        # For experiences
+        self.experience_date = None
+        self.experience_time = None
+        self.participants = guests  # Same as guests for experiences
 
 class Review:
     def __init__(self, booking_id, listing_id, reviewer_id, reviewee_id, rating, comment, review_type, categories=None):
@@ -64,37 +95,13 @@ class Review:
         self.rating = rating  # Overall rating 1-5
         self.comment = comment
         self.review_type = review_type  # 'tourist_to_host', 'host_to_tourist', 'tourist_to_listing'
-        self.categories = categories or {}  # Category-specific ratings (cleanliness, location, etc.)
+        self.categories = categories or {}  # Category-specific ratings
         self.created_at = datetime.utcnow()
         self.updated_at = datetime.utcnow()
         self.is_verified = False
         self.helpful_votes = 0
-        self.response = None  # Host response to review
+        self.response = None
         self.response_date = None
-        self.photos = []  # Review photos
-        self.status = 'active'  # 'active', 'hidden', 'flagged'
-
-
-class ReviewResponse:
-    def __init__(self, review_id, responder_id, response_text):
-        self.review_id = review_id
-        self.responder_id = responder_id
-        self.response_text = response_text
-        self.created_at = datetime.utcnow()
-        self.is_public = True
-
-class Experience:
-    def __init__(self, host_id, listing_id, title, description, duration, price, category, max_participants):
-        self.host_id = host_id
-        self.listing_id = listing_id
-        self.title = title
-        self.description = description
-        self.duration = duration  # in hours
-        self.price = price
-        self.category = category  # 'cultural', 'adventure', 'culinary', 'spiritual', 'farming'
-        self.max_participants = max_participants
-        self.created_at = datetime.utcnow()
-        self.is_active = True
-        self.images = []
-        self.inclusions = []
-        self.requirements = []
+        self.photos = []
+        self.status = 'active'
+        self.listing_type = 'homestay'  # 'homestay' or 'experience'

@@ -6,7 +6,7 @@ from flask_cors import CORS
 from config import Config
 from database import mongo, init_db
 import os
-
+from routes.experiences import experiences_bp
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
@@ -48,6 +48,7 @@ def create_app():
     app.register_blueprint(impact_bp, url_prefix='/api/impact')
     app.register_blueprint(ai_features_bp, url_prefix='/api/ai-features')
     app.register_blueprint(reviews_bp, url_prefix='/api/reviews')
+    app.register_blueprint(experiences_bp, url_prefix='/api/experiences')
 
     @app.route('/')
     def health_check():
