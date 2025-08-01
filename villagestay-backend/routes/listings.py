@@ -22,40 +22,60 @@ import io
 listings_bp = Blueprint('listings', __name__)
 
 
+def get_listing_videos(listing_id):
+    """Helper function to get videos for a listing"""
+    try:
+        videos = list(mongo.db.village_story_videos.find({
+            "listing_id": ObjectId(listing_id),
+            "status": "completed"
+        }).sort("generated_at", -1))
+        
+        formatted_videos = []
+        for video in videos:
+            video_data = {
+                "id": str(video["_id"]),
+                "video_id": video["video_id"],
+                "video_filename": video["video_filename"],
+                "video_url": f"/api/ai-features/videos/{video['video_filename']}",
+                "download_url": f"/api/ai-features/videos/{video['video_filename']}/download",
+                "duration": video.get("duration", 30),
+                "file_size": video.get("file_size", 0),
+                "generated_at": video["generated_at"].isoformat(),
+                "prompt_used": video.get("prompt_used", "")
+            }
+            formatted_videos.append(video_data)
+        
+        return formatted_videos
+    except Exception as e:
+        print(f"Error getting listing videos: {e}")
+        return []
 
 
-@listings_bp.route('/', methods=['GET'])
+
+@listings_bp.route('/', methods=['GET', 'OPTIONS'])
 def get_listings():
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200
+        
     try:
         # Get query parameters
         page = int(request.args.get('page', 1))
-        limit = int(request.args.get('limit', 10))
-        location = request.args.get('location')
-        property_type = request.args.get('property_type')
-        min_price = request.args.get('min_price', type=float)
-        max_price = request.args.get('max_price', type=float)
-        lat = request.args.get('lat', type=float)
-        lng = request.args.get('lng', type=float)
-        radius = request.args.get('radius', type=float, default=50)  # km
-        guests = int(request.args.get('guests', 1))
-        check_in = request.args.get('check_in')
-        check_out = request.args.get('check_out')
-        sort_by = request.args.get('sort_by', 'created_at')
-        order = request.args.get('order', 'desc')
-        
+        limit = int(request.args.get('limit', 12))
+        location = request.args.get('location', '')
+        property_type = request.args.get('property_type', '')
+        min_price = request.args.get('min_price', type=int)
+        max_price = request.args.get('max_price', type=int)
+        guests = request.args.get('guests', type=int)
         
         # Build query
         query = {"is_active": True, "is_approved": True}
         
-        # Location filter
         if location:
             query["location"] = {"$regex": location, "$options": "i"}
         
-        # Property type filter
         if property_type:
             query["property_type"] = property_type
         
-        # Price range filter
         if min_price is not None or max_price is not None:
             price_query = {}
             if min_price is not None:
@@ -64,33 +84,18 @@ def get_listings():
                 price_query["$lte"] = max_price
             query["price_per_night"] = price_query
         
-        # Guests filter
-        if guests > 1:
+        if guests:
             query["max_guests"] = {"$gte": guests}
         
-        # Geolocation filter
-        if lat and lng:
-            query["coordinates"] = {
-                "$near": {
-                    "$geometry": {"type": "Point", "coordinates": [lng, lat]},
-                    "$maxDistance": radius * 1000  # Convert km to meters
-                }
-            }
+        # Get total count
+        total = mongo.db.listings.count_documents(query)
         
-        # Build sort
-        sort_order = 1 if order == 'asc' else -1
-        sort_criteria = [(sort_by, sort_order)]
-        
-        # Execute query
+        # Get listings with pagination
         skip = (page - 1) * limit
-        
         listings = list(mongo.db.listings.find(query)
-                       .sort(sort_criteria)
+                       .sort("created_at", -1)
                        .skip(skip)
                        .limit(limit))
-        
-        # Get total count
-        total_count = mongo.db.listings.count_documents(query)
         
         # Format listings
         formatted_listings = []
@@ -105,89 +110,123 @@ def get_listings():
                 "location": listing['location'],
                 "price_per_night": listing['price_per_night'],
                 "property_type": listing['property_type'],
-                "amenities": listing['amenities'],
-                "images": listing['images'],
-                "coordinates": listing['coordinates'],
-                "max_guests": listing['max_guests'],
+                "amenities": listing.get('amenities', []),
+                "images": listing.get('images', []),
+                "coordinates": listing.get('coordinates', {}),
+                "max_guests": listing.get('max_guests', 4),
+                "sustainability_features": listing.get('sustainability_features', []),
                 "rating": listing.get('rating', 0),
                 "review_count": listing.get('review_count', 0),
-                "sustainability_features": listing.get('sustainability_features', []),
+                "has_village_story": listing.get('has_village_story', False),
+                "created_at": listing['created_at'].isoformat() if 'created_at' in listing else None,
                 "host": {
                     "id": str(host['_id']),
                     "full_name": host['full_name'],
                     "profile_image": host.get('profile_image')
-                } if host else None,
-                "created_at": listing['created_at'].isoformat()
+                } if host else None
             }
-            
-            # Check availability if dates provided
-            if check_in and check_out:
-                formatted_listing['is_available'] = check_availability(
-                    listing['_id'], check_in, check_out
-                )
-            
             formatted_listings.append(formatted_listing)
         
         return jsonify({
             "listings": formatted_listings,
             "pagination": {
-                "page": page,
-                "limit": limit,
-                "total_count": total_count,
-                "total_pages": math.ceil(total_count / limit)
+                "current_page": page,
+                "total_pages": (total + limit - 1) // limit,
+                "total_listings": total,
+                "has_next": page * limit < total,
+                "has_prev": page > 1
             }
         }), 200
         
     except Exception as e:
+        print(f"Error getting listings: {e}")
         return jsonify({"error": str(e)}), 500
 
-@listings_bp.route('/<listing_id>', methods=['GET'])
+@listings_bp.route('/<listing_id>', methods=['GET', 'OPTIONS'])
 def get_listing(listing_id):
-    try:
-        listing = mongo.db.listings.find_one({"_id": ObjectId(listing_id)})
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200
         
+    try:
+        print(f"📖 Getting listing: {listing_id}")
+        
+        # Validate ObjectId
+        if not ObjectId.is_valid(listing_id):
+            return jsonify({"error": "Invalid listing ID"}), 400
+        
+        listing = mongo.db.listings.find_one({"_id": ObjectId(listing_id)})
         if not listing:
             return jsonify({"error": "Listing not found"}), 404
         
-        # Get host info
+        print(f"✅ Found listing: {listing['title']}")
+        
+        # Get host information
         host = mongo.db.users.find_one({"_id": listing['host_id']})
         
-        # Get experiences
-        experiences = list(mongo.db.experiences.find({"listing_id": ObjectId(listing_id)}))
+        # Get listing videos
+        videos = get_listing_videos(listing_id)
+        print(f"🎬 Found {len(videos)} videos for listing")
         
         # Get reviews
-        reviews = list(mongo.db.reviews.find({"reviewee_id": listing['host_id']}))
+        reviews = list(mongo.db.reviews.find({
+            "listing_id": ObjectId(listing_id),
+            "status": "active"
+        }).sort("created_at", -1).limit(10))
         
-        formatted_listing = {
+        formatted_reviews = []
+        for review in reviews:
+            reviewer = mongo.db.users.find_one({"_id": review['reviewer_id']})
+            formatted_review = {
+                "id": str(review['_id']),
+                "rating": review['rating'],
+                "comment": review['comment'],
+                "created_at": review['created_at'].isoformat() if 'created_at' in review else None,
+                "reviewer": {
+                    "full_name": reviewer['full_name'] if reviewer else "Anonymous",
+                    "profile_image": reviewer.get('profile_image') if reviewer else None
+                }
+            }
+            formatted_reviews.append(formatted_review)
+        
+        # Format listing data
+        listing_data = {
             "id": str(listing['_id']),
             "title": listing['title'],
             "description": listing['description'],
             "location": listing['location'],
             "price_per_night": listing['price_per_night'],
             "property_type": listing['property_type'],
-            "amenities": listing['amenities'],
-            "images": listing['images'],
-            "coordinates": listing['coordinates'],
-            "max_guests": listing['max_guests'],
+            "amenities": listing.get('amenities', []),
+            "images": listing.get('images', []),
+            "coordinates": listing.get('coordinates', {}),
+            "max_guests": listing.get('max_guests', 4),
             "house_rules": listing.get('house_rules', []),
+            "sustainability_features": listing.get('sustainability_features', []),
+            "experiences": listing.get('experiences', []),
             "rating": listing.get('rating', 0),
             "review_count": listing.get('review_count', 0),
-            "sustainability_features": listing.get('sustainability_features', []),
-            "availability_calendar": listing.get('availability_calendar', {}),
+            "created_at": listing['created_at'].isoformat() if 'created_at' in listing else None,
+            "is_active": listing.get('is_active', True),
+            "is_approved": listing.get('is_approved', False),
+            "has_village_story": listing.get('has_village_story', False),
+            "village_story_videos": videos,  # Add videos array
+            "village_story_video": videos[0] if videos else None,  # Add latest video for backward compatibility
+            "reviews": formatted_reviews,
             "host": {
                 "id": str(host['_id']),
                 "full_name": host['full_name'],
-                "profile_image": host.get('profile_image'),
-                "created_at": host['created_at'].isoformat()
-            } if host else None,
-            "experiences": [format_experience(exp) for exp in experiences],
-            "reviews": [format_review(review) for review in reviews],
-            "created_at": listing['created_at'].isoformat()
+                "created_at": host['created_at'].isoformat() if 'created_at' in host else None,
+                "profile_image": host.get('profile_image')
+            } if host else None
         }
         
-        return jsonify(formatted_listing), 200
+        print(f"📦 Returning listing data with {len(videos)} videos")
+        return jsonify(listing_data), 200
         
     except Exception as e:
+        print(f"❌ Error getting listing: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 
@@ -204,67 +243,34 @@ def create_listing():
             return jsonify({"error": "Only hosts can create listings"}), 403
         
         # Required fields validation
-        required_fields = ['title', 'location', 'price_per_night', 'property_type']
+        required_fields = ['title', 'description', 'location', 'price_per_night', 'property_type']
         for field in required_fields:
-            if field not in data or not data[field]:
+            if not data.get(field):
                 return jsonify({"error": f"{field} is required"}), 400
-        
-        # Handle images - convert base64 to URLs or store as-is for now
-        images = data.get('images', [])
-        if not images:
-            return jsonify({"error": "At least one image is required"}), 400
-        
-        # Geocode the location to get coordinates
-        coordinates = {"lat": 0, "lng": 0}  # Default fallback
-        formatted_location = data['location']
-        
-        try:
-            print(f"🌍 Attempting to geocode location: {data['location']}")
-            geocoding_result = get_coordinates_from_location(data['location'])
-            
-            coordinates = {
-                "lat": geocoding_result['lat'],
-                "lng": geocoding_result['lng']
-            }
-            
-            # Use the formatted address from Google if available
-            if geocoding_result.get('formatted_address'):
-                formatted_location = geocoding_result['formatted_address']
-                print(f"✅ Using formatted location: {formatted_location}")
-            
-            print(f"✅ Geocoding successful: {coordinates}")
-            
-        except Exception as geocoding_error:
-            print(f"⚠️ Geocoding failed: {geocoding_error}")
-            # Continue with listing creation but log the error
-            # Don't fail the entire request due to geocoding issues
         
         # Create listing document
         listing_doc = {
             "host_id": ObjectId(user_id),
             "title": data['title'],
-            "description": data.get('description', ''),
-            "location": formatted_location,  # Use formatted location
+            "description": data['description'],
+            "location": data['location'],
             "price_per_night": float(data['price_per_night']),
             "property_type": data['property_type'],
             "amenities": data.get('amenities', []),
-            "images": images,
-            "coordinates": coordinates,  # Geocoded coordinates
+            "images": data.get('images', []),
+            "coordinates": data.get('coordinates', {}),
             "max_guests": int(data.get('max_guests', 4)),
             "house_rules": data.get('house_rules', []),
             "sustainability_features": data.get('sustainability_features', []),
+            "experiences": data.get('experiences', []),
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow(),
             "is_active": True,
             "is_approved": False,  # Needs admin approval
             "rating": 0.0,
             "review_count": 0,
-            "availability_calendar": {},
-            # Add new required fields
-            "ai_generated_content": {},
-            "admin_notes": "",
-            "approved_at": None,
-            "approved_by": None
+            "has_village_story": False,
+            "availability_calendar": {}
         }
         
         # Insert listing
@@ -272,14 +278,14 @@ def create_listing():
         
         return jsonify({
             "message": "Listing created successfully",
-            "listing_id": str(result.inserted_id),
-            "coordinates": coordinates,
-            "formatted_location": formatted_location
+            "listing_id": str(result.inserted_id)
         }), 201
         
     except Exception as e:
-        print(f"Error creating listing: {str(e)}")
+        print(f"Error creating listing: {e}")
         return jsonify({"error": str(e)}), 500
+
+
 
 # Add new route for geocoding validation
 @listings_bp.route('/geocode', methods=['POST'])
@@ -322,44 +328,42 @@ def update_listing(listing_id):
         user_id = get_jwt_identity()
         data = request.get_json()
         
-        # Verify ownership
+        # Get listing
         listing = mongo.db.listings.find_one({"_id": ObjectId(listing_id)})
         if not listing:
             return jsonify({"error": "Listing not found"}), 404
         
+        # Verify ownership
         if str(listing['host_id']) != user_id:
-            return jsonify({"error": "Unauthorized to modify this listing"}), 403
+            return jsonify({"error": "Unauthorized"}), 403
         
-        # Allowed fields for update
-        allowed_fields = [
-            'title', 'description', 'location', 'price_per_night',
-            'amenities', 'images', 'max_guests', 'house_rules',
-            'sustainability_features', 'is_active'
+        # Update fields
+        update_data = {
+            "updated_at": datetime.utcnow()
+        }
+        
+        updatable_fields = [
+            'title', 'description', 'location', 'price_per_night', 
+            'property_type', 'amenities', 'images', 'coordinates',
+            'max_guests', 'house_rules', 'sustainability_features', 'experiences'
         ]
         
-        update_data = {}
-        for field in allowed_fields:
+        for field in updatable_fields:
             if field in data:
                 update_data[field] = data[field]
         
-        if not update_data:
-            return jsonify({"error": "No valid fields to update"}), 400
-        
-        update_data['updated_at'] = datetime.utcnow()
-        
         # Update listing
-        result = mongo.db.listings.update_one(
+        mongo.db.listings.update_one(
             {"_id": ObjectId(listing_id)},
             {"$set": update_data}
         )
         
-        if result.matched_count == 0:
-            return jsonify({"error": "Listing not found"}), 404
-        
         return jsonify({"message": "Listing updated successfully"}), 200
         
     except Exception as e:
+        print(f"Error updating listing: {e}")
         return jsonify({"error": str(e)}), 500
+
 
 @listings_bp.route('/<listing_id>', methods=['DELETE'])
 @jwt_required()
@@ -386,44 +390,58 @@ def delete_listing(listing_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@listings_bp.route('/search', methods=['GET'])
+@listings_bp.route('/search', methods=['GET', 'OPTIONS'])
 def search_listings():
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200
+        
     try:
+        # Get search parameters
         query = request.args.get('q', '')
         location = request.args.get('location', '')
+        property_type = request.args.get('property_type', '')
+        min_price = request.args.get('min_price', type=int)
+        max_price = request.args.get('max_price', type=int)
+        guests = request.args.get('guests', type=int)
+        page = int(request.args.get('page', 1))
+        limit = int(request.args.get('limit', 12))
         
-        # Build comprehensive search query
+        # Build search query
         search_query = {"is_active": True, "is_approved": True}
         
-        if query or location:
-            or_conditions = []
-            
-            if query:
-                # Split query into words for better matching
-                query_words = query.lower().split()
-                word_conditions = []
-                
-                for word in query_words:
-                    word_conditions.extend([
-                        {"title": {"$regex": word, "$options": "i"}},
-                        {"description": {"$regex": word, "$options": "i"}},
-                        {"location": {"$regex": word, "$options": "i"}},
-                        {"property_type": {"$regex": word, "$options": "i"}},
-                        {"amenities": {"$elemMatch": {"$regex": word, "$options": "i"}}}
-                    ])
-                
-                or_conditions.extend(word_conditions)
-            
-            if location:
-                location_words = location.lower().split()
-                for word in location_words:
-                    or_conditions.append({"location": {"$regex": word, "$options": "i"}})
-            
-            if or_conditions:
-                search_query["$or"] = or_conditions
+        if query:
+            search_query["$or"] = [
+                {"title": {"$regex": query, "$options": "i"}},
+                {"description": {"$regex": query, "$options": "i"}},
+                {"location": {"$regex": query, "$options": "i"}},
+                {"amenities": {"$in": [query]}}
+            ]
         
-        # Execute search with larger limit for better results
-        listings = list(mongo.db.listings.find(search_query).limit(100))
+        if location:
+            search_query["location"] = {"$regex": location, "$options": "i"}
+        
+        if property_type:
+            search_query["property_type"] = property_type
+        
+        if min_price is not None or max_price is not None:
+            price_query = {}
+            if min_price is not None:
+                price_query["$gte"] = min_price
+            if max_price is not None:
+                price_query["$lte"] = max_price
+            search_query["price_per_night"] = price_query
+        
+        if guests:
+            search_query["max_guests"] = {"$gte": guests}
+        
+        # Execute search
+        total = mongo.db.listings.count_documents(search_query)
+        skip = (page - 1) * limit
+        
+        listings = list(mongo.db.listings.find(search_query)
+                       .sort("rating", -1)
+                       .skip(skip)
+                       .limit(limit))
         
         # Format results
         formatted_listings = []
@@ -433,33 +451,45 @@ def search_listings():
             formatted_listing = {
                 "id": str(listing['_id']),
                 "title": listing['title'],
-                "description": listing['description'][:200] + "..." if len(listing['description']) > 200 else listing['description'],
+                "description": listing['description'],
                 "location": listing['location'],
                 "price_per_night": listing['price_per_night'],
                 "property_type": listing['property_type'],
-                "images": listing['images'],
-                "coordinates": listing['coordinates'],
+                "amenities": listing.get('amenities', []),
+                "images": listing.get('images', []),
+                "coordinates": listing.get('coordinates', {}),
+                "max_guests": listing.get('max_guests', 4),
                 "rating": listing.get('rating', 0),
                 "review_count": listing.get('review_count', 0),
-                "amenities": listing.get('amenities', []),
-                "sustainability_features": listing.get('sustainability_features', []),
+                "has_village_story": listing.get('has_village_story', False),
                 "host": {
                     "id": str(host['_id']),
                     "full_name": host['full_name']
                 } if host else None
             }
-            
             formatted_listings.append(formatted_listing)
         
         return jsonify({
             "listings": formatted_listings,
-            "total_found": len(formatted_listings),
-            "search_query": query,
-            "location_query": location
+            "pagination": {
+                "current_page": page,
+                "total_pages": (total + limit - 1) // limit,
+                "total_listings": total,
+                "has_next": page * limit < total,
+                "has_prev": page > 1
+            },
+            "search_query": {
+                "query": query,
+                "location": location,
+                "property_type": property_type,
+                "min_price": min_price,
+                "max_price": max_price,
+                "guests": guests
+            }
         }), 200
         
     except Exception as e:
-        print(f"Search error: {str(e)}")
+        print(f"Error searching listings: {e}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -515,62 +545,58 @@ def update_availability(listing_id):
    except Exception as e:
        return jsonify({"error": str(e)}), 500
 
-@listings_bp.route('/host/<host_id>', methods=['GET'])
+@listings_bp.route('/host/<host_id>', methods=['GET', 'OPTIONS'])
+@jwt_required()
 def get_host_listings(host_id):
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200
+        
     try:
-        # Get query parameters
-        page = int(request.args.get('page', 1))
-        limit = int(request.args.get('limit', 10))
+        user_id = get_jwt_identity()
         
-        # Build query
-        query = {"host_id": ObjectId(host_id), "is_active": True}
+        # Verify user can access these listings
+        if user_id != host_id:
+            user = mongo.db.users.find_one({"_id": ObjectId(user_id)})
+            if not user or user['user_type'] != 'admin':
+                return jsonify({"error": "Unauthorized"}), 403
         
-        # Execute query
-        skip = (page - 1) * limit
+        # Get listings
+        listings = list(mongo.db.listings.find({"host_id": ObjectId(host_id)})
+                       .sort("created_at", -1))
         
-        listings = list(mongo.db.listings.find(query)
-                       .sort("created_at", -1)
-                       .skip(skip)
-                       .limit(limit))
-        
-        # Get total count (including inactive listings for host)
-        total_count = mongo.db.listings.count_documents({"host_id": ObjectId(host_id)})
-        
-        # Format listings
         formatted_listings = []
         for listing in listings:
+            # Get videos for each listing
+            videos = get_listing_videos(str(listing['_id']))
+            
             formatted_listing = {
                 "id": str(listing['_id']),
                 "title": listing['title'],
-                "description": listing['description'][:200] + "..." if len(listing['description']) > 200 else listing['description'],
+                "description": listing['description'],
                 "location": listing['location'],
                 "price_per_night": listing['price_per_night'],
                 "property_type": listing['property_type'],
-                "images": listing['images'][:1],
+                "amenities": listing.get('amenities', []),
+                "images": listing.get('images', []),
+                "coordinates": listing.get('coordinates', {}),
+                "max_guests": listing.get('max_guests', 4),
+                "is_active": listing.get('is_active', True),
+                "is_approved": listing.get('is_approved', False),
+                "has_village_story": listing.get('has_village_story', False),
+                "village_story_videos": videos,
                 "rating": listing.get('rating', 0),
                 "review_count": listing.get('review_count', 0),
-                "is_approved": listing.get('is_approved', False),
-                "is_active": listing.get('is_active', True),
-                "created_at": listing['created_at'].isoformat(),
-                # Add status information
-                "status": "active" if listing.get('is_approved', False) and listing.get('is_active', True) 
-                         else "pending" if not listing.get('is_approved', False) and listing.get('is_active', True)
-                         else "inactive"
+                "created_at": listing['created_at'].isoformat() if 'created_at' in listing else None
             }
-            
             formatted_listings.append(formatted_listing)
         
         return jsonify({
             "listings": formatted_listings,
-            "pagination": {
-                "page": page,  
-                "limit": limit,
-                "total_count": total_count,
-                "total_pages": math.ceil(total_count / limit)
-            }
+            "total_count": len(formatted_listings)
         }), 200
         
     except Exception as e:
+        print(f"Error getting host listings: {e}")
         return jsonify({"error": str(e)}), 500
 
 

@@ -24,6 +24,8 @@ offline-ai/
 .claude
 booking-ai-assistant/.wwebjs_auth
 booking-ai-assistant/.wwebjs_cache
-
+videos/
+static/videos/
+service-config.json
 
 

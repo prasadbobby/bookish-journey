@@ -1,7 +1,10 @@
+# villagestay-backend/routes/ai_features.py
+
 from flask import Blueprint, request, jsonify, Response, stream_template
 from utils.weather_utils import weather_service, get_weather_based_recommendations
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from database import mongo
+from config import Config  # ADD THIS IMPORT
 from utils.ai_utils import (
     generate_village_story_video, 
     voice_to_listing_magic, 
@@ -16,95 +19,464 @@ import json
 import uuid
 import time
 import re
+import os  # ADD THIS IMPORT
+import threading
 
 ai_features_bp = Blueprint('ai_features', __name__)
+
+# Import video service
+from utils.video_utils import video_service
+
+# ============ VIDEO SERVING ROUTES ============
+
+@ai_features_bp.route('/videos/<filename>', methods=['GET', 'OPTIONS'])
+def serve_video(filename):
+    """Serve generated videos with proper CORS headers"""
+    
+    if request.method == 'OPTIONS':
+        response = jsonify({})
+        response.headers.add("Access-Control-Allow-Origin", "*")
+        response.headers.add("Access-Control-Allow-Headers", "*")
+        response.headers.add("Access-Control-Allow-Methods", "GET, OPTIONS")
+        return response, 200
+    
+    try:
+        # Construct the full path to the video file
+        video_path = os.path.join(Config.VIDEO_FOLDER, filename)
+        
+        print(f"🎬 Requested video: {filename}")
+        print(f"📁 Looking for video at: {video_path}")
+        print(f"📂 Video folder: {Config.VIDEO_FOLDER}")
+        print(f"✅ File exists: {os.path.exists(video_path)}")
+        
+        if not os.path.exists(video_path):
+            print(f"❌ Video file not found: {video_path}")
+            # List all files in the video directory for debugging
+            if os.path.exists(Config.VIDEO_FOLDER):
+                files = os.listdir(Config.VIDEO_FOLDER)
+                print(f"📋 Available files: {files}")
+            return jsonify({"error": "Video file not found", "path": video_path}), 404
+        
+        print(f"📹 Serving video: {video_path}")
+        
+        # Get file size for headers
+        file_size = os.path.getsize(video_path)
+        
+        # Create response with proper headers for video streaming
+        def generate():
+            with open(video_path, 'rb') as f:
+                data = f.read(1024)
+                while data:
+                    yield data
+                    data = f.read(1024)
+        
+        response = Response(
+            generate(),
+            mimetype='video/mp4',
+            headers={
+                'Content-Disposition': f'inline; filename="{filename}"',
+                'Accept-Ranges': 'bytes',
+                'Content-Type': 'video/mp4',
+                'Content-Length': str(file_size),
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+                'Access-Control-Allow-Headers': 'Range, Content-Range, Content-Length, Content-Type',
+                'Cache-Control': 'public, max-age=3600'
+            }
+        )
+        
+        print(f"✅ Successfully serving video: {filename}")
+        return response
+        
+    except Exception as e:
+        print(f"❌ Error serving video {filename}: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": "Failed to serve video", "details": str(e)}), 500
+
+@ai_features_bp.route('/videos/<filename>/download', methods=['GET', 'OPTIONS'])
+def download_video(filename):
+    """Download video file with proper headers"""
+    
+    if request.method == 'OPTIONS':
+        response = jsonify({})
+        response.headers.add("Access-Control-Allow-Origin", "*")
+        response.headers.add("Access-Control-Allow-Headers", "*")
+        response.headers.add("Access-Control-Allow-Methods", "GET, OPTIONS")
+        return response, 200
+    
+    try:
+        from flask import send_file
+        video_path = os.path.join(Config.VIDEO_FOLDER, filename)
+        
+        if not os.path.exists(video_path):
+            return jsonify({"error": "Video file not found"}), 404
+        
+        return send_file(
+            video_path,
+            mimetype='video/mp4',
+            as_attachment=True,
+            download_name=f"village_story_{filename}",
+            conditional=True
+        )
+        
+    except Exception as e:
+        print(f"❌ Error downloading video {filename}: {e}")
+        return jsonify({"error": "Failed to download video"}), 500
+
+@ai_features_bp.route('/videos/<filename>/stream', methods=['GET', 'OPTIONS'])
+def stream_video(filename):
+    """Stream video with range support"""
+    
+    if request.method == 'OPTIONS':
+        response = jsonify({})
+        response.headers.add("Access-Control-Allow-Origin", "*")
+        response.headers.add("Access-Control-Allow-Headers", "*")
+        response.headers.add("Access-Control-Allow-Methods", "GET, OPTIONS")
+        return response, 200
+    
+    try:
+        video_path = os.path.join(Config.VIDEO_FOLDER, filename)
+        
+        if not os.path.exists(video_path):
+            return jsonify({"error": "Video file not found"}), 404
+        
+        file_size = os.path.getsize(video_path)
+        range_header = request.headers.get('Range', None)
+        
+        if range_header:
+            byte_start = 0
+            byte_end = file_size - 1
+            
+            if range_header:
+                match = re.search(r'bytes=(\d+)-(\d*)', range_header)
+                if match:
+                    byte_start = int(match.group(1))
+                    if match.group(2):
+                        byte_end = int(match.group(2))
+            
+            chunk_size = byte_end - byte_start + 1
+            
+            def generate():
+                with open(video_path, 'rb') as f:
+                    f.seek(byte_start)
+                    remaining = chunk_size
+                    while remaining:
+                        to_read = min(1024, remaining)
+                        data = f.read(to_read)
+                        if not data:
+                            break
+                        remaining -= len(data)
+                        yield data
+            
+            response = Response(
+                generate(),
+                status=206,
+                headers={
+                    'Content-Range': f'bytes {byte_start}-{byte_end}/{file_size}',
+                    'Accept-Ranges': 'bytes',
+                    'Content-Length': str(chunk_size),
+                    'Content-Type': 'video/mp4',
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+                    'Access-Control-Allow-Headers': 'Range, Content-Range, Content-Length, Content-Type'
+                }
+            )
+        else:
+            def generate():
+                with open(video_path, 'rb') as f:
+                    data = f.read(1024)
+                    while data:
+                        yield data
+                        data = f.read(1024)
+            
+            response = Response(
+                generate(),
+                headers={
+                    'Content-Length': str(file_size),
+                    'Content-Type': 'video/mp4',
+                    'Accept-Ranges': 'bytes',
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+                    'Access-Control-Allow-Headers': 'Range, Content-Range, Content-Length, Content-Type'
+                }
+            )
+        
+        return response
+        
+    except Exception as e:
+        print(f"❌ Error streaming video {filename}: {e}")
+        return jsonify({"error": "Failed to stream video"}), 500
+
+@ai_features_bp.route('/videos/debug', methods=['GET'])
+def debug_videos():
+    """Debug route to check video files"""
+    try:
+        video_folder = Config.VIDEO_FOLDER
+        
+        print(f"🔍 Debug - Video folder: {video_folder}")
+        print(f"🔍 Debug - Absolute path: {os.path.abspath(video_folder)}")
+        print(f"🔍 Debug - Folder exists: {os.path.exists(video_folder)}")
+        
+        if not os.path.exists(video_folder):
+            return jsonify({
+                "error": "Video folder does not exist",
+                "path": video_folder,
+                "absolute_path": os.path.abspath(video_folder)
+            }), 404
+        
+        files = os.listdir(video_folder)
+        video_files = [f for f in files if f.endswith('.mp4')]
+        
+        file_details = []
+        for file in video_files:
+            file_path = os.path.join(video_folder, file)
+            file_details.append({
+                "filename": file,
+                "size": os.path.getsize(file_path),
+                "full_path": os.path.abspath(file_path),
+                "exists": os.path.exists(file_path),
+                "url": f"/api/ai-features/videos/{file}"
+            })
+        
+        return jsonify({
+            "video_folder": video_folder,
+            "absolute_path": os.path.abspath(video_folder),
+            "total_files": len(files),
+            "video_files": len(video_files),
+            "all_files": files,
+            "video_details": file_details
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Debug error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+# Helper function for listing videos
+def get_listing_videos(listing_id):
+    """Helper function to get videos for a listing"""
+    try:
+        videos = list(mongo.db.village_story_videos.find({
+            "listing_id": ObjectId(listing_id),
+            "status": "completed"
+        }).sort("generated_at", -1))
+        
+        formatted_videos = []
+        for video in videos:
+            # Verify the video file actually exists
+            video_path = os.path.join(Config.VIDEO_FOLDER, video["video_filename"])
+            file_exists = os.path.exists(video_path)
+            
+            print(f"📹 Video: {video['video_filename']}, Exists: {file_exists}")
+            
+            if file_exists:  # Only include videos that actually exist
+                video_data = {
+                    "id": str(video["_id"]),
+                    "video_id": video["video_id"],
+                    "video_filename": video["video_filename"],
+                    "video_url": f"/api/ai-features/videos/{video['video_filename']}",
+                    "download_url": f"/api/ai-features/videos/{video['video_filename']}/download",
+                    "stream_url": f"/api/ai-features/videos/{video['video_filename']}/stream",
+                    "duration": video.get("duration", 30),
+                    "file_size": video.get("file_size", 0),
+                    "generated_at": video["generated_at"].isoformat(),
+                    "prompt_used": video.get("prompt_used", ""),
+                    "file_exists": file_exists,
+                    "file_path": video_path  # For debugging
+                }
+                formatted_videos.append(video_data)
+            else:
+                print(f"⚠️ Video file missing: {video_path}")
+        
+        return formatted_videos
+    except Exception as e:
+        print(f"Error getting listing videos: {e}")
+        return []
+
+# ============ EXISTING AI FEATURES ROUTES ============
+
+@ai_features_bp.route('/listing-videos/<listing_id>', methods=['GET'])
+def get_listing_videos_route(listing_id):
+    """Get all videos for a specific listing"""
+    try:
+        # Verify listing exists
+        listing = mongo.db.listings.find_one({"_id": ObjectId(listing_id)})
+        if not listing:
+            return jsonify({"error": "Listing not found"}), 404
+        
+        # Get videos for this listing
+        videos = get_listing_videos(listing_id)
+        
+        return jsonify({
+            "success": True,
+            "videos": videos,
+            "total_count": len(videos)
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Error fetching listing videos: {e}")
+        return jsonify({"error": str(e)}), 500
 
 # ============ FEATURE 1: AI VILLAGE STORY GENERATOR ============
 
 @ai_features_bp.route('/generate-village-story', methods=['POST'])
 @jwt_required()
 def generate_village_story():
-   try:
-       user_id = get_jwt_identity()
-       data = request.get_json()
-       
-       # Verify user is a host
-       user = mongo.db.users.find_one({"_id": ObjectId(user_id)})
-       if not user or user['user_type'] != 'host':
-           return jsonify({"error": "Only hosts can generate village stories"}), 403
-       
-       listing_id = data.get('listing_id')
-       images = data.get('images', [])  # Array of image URLs or base64
-       
-       if not listing_id:
-           return jsonify({"error": "Listing ID is required"}), 400
-       
-       # Get listing details
-       listing = mongo.db.listings.find_one({"_id": ObjectId(listing_id)})
-       if not listing:
-           return jsonify({"error": "Listing not found"}), 404
-       
-       if str(listing['host_id']) != user_id:
-           return jsonify({"error": "Unauthorized to generate story for this listing"}), 403
-       
-       # Host information
-       host_info = {
-           "full_name": user['full_name'],
-           "location": user.get('address', listing['location'])
-       }
-       
-       # Generate village story video
-       story_result = generate_village_story_video(images, listing, host_info)
-       
-       # Save generation record
-       generation_record = {
-           "listing_id": ObjectId(listing_id),
-           "host_id": ObjectId(user_id),
-           "video_data": story_result,
-           "images_used": len(images),
-           "created_at": datetime.utcnow(),
-           "generation_type": "village_story"
-       }
-       
-       mongo.db.ai_generations.insert_one(generation_record)
-       
-       return jsonify({
-           "message": "Village story video generated successfully",
-           "video_data": story_result,
-           "generation_id": str(generation_record["_id"]) if "_id" in generation_record else None
-       }), 200
-       
-   except Exception as e:
-       return jsonify({"error": str(e)}), 500
+    try:
+        user_id = get_jwt_identity()
+        data = request.get_json()
+        
+        # Verify user is a host
+        user = mongo.db.users.find_one({"_id": ObjectId(user_id)})
+        if not user or user['user_type'] != 'host':
+            return jsonify({"error": "Only hosts can generate village stories"}), 403
+        
+        listing_id = data.get('listing_id')
+        images = data.get('images', [])  # Array of image URLs or base64
+        
+        if not listing_id:
+            return jsonify({"error": "Listing ID is required"}), 400
+        
+        # Get listing details
+        listing = mongo.db.listings.find_one({"_id": ObjectId(listing_id)})
+        if not listing:
+            return jsonify({"error": "Listing not found"}), 404
+        
+        if str(listing['host_id']) != user_id:
+            return jsonify({"error": "Unauthorized to generate story for this listing"}), 403
+        
+        # Host information
+        host_info = {
+            "full_name": user['full_name'],
+            "location": user.get('address', listing['location'])
+        }
+        
+        # Create generation record first
+        generation_record = {
+            "listing_id": ObjectId(listing_id),
+            "host_id": ObjectId(user_id),
+            "images_used": len(images),
+            "created_at": datetime.utcnow(),
+            "generation_type": "village_story",
+            "status": "processing",
+            "video_data": None
+        }
+        
+        result = mongo.db.ai_generations.insert_one(generation_record)
+        generation_id = str(result.inserted_id)
+        
+        # Generate video in background thread to avoid timeout
+        def generate_video_async():
+            try:
+                print(f"🎬 Starting async video generation for listing: {listing['title']}")
+                video_result = video_service.generate_video(listing, host_info, images)
+                
+                print(f"✅ Video generation completed: {video_result}")
+                
+                # Update generation record with video data
+                mongo.db.ai_generations.update_one(
+                    {"_id": ObjectId(generation_id)},
+                    {
+                        "$set": {
+                            "status": "completed",
+                            "video_data": video_result,
+                            "completed_at": datetime.utcnow()
+                        }
+                    }
+                )
+                
+                # Update listing with video information and set has_village_story flag
+                mongo.db.listings.update_one(
+                    {"_id": ObjectId(listing_id)},
+                    {
+                        "$set": {
+                            "village_story_video": video_result,
+                            "has_village_story": True,
+                            "latest_video_generated_at": datetime.utcnow()
+                        }
+                    }
+                )
+                
+                print(f"✅ Database updated successfully for listing: {listing['title']}")
+                
+            except Exception as e:
+                print(f"❌ Async video generation failed: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                
+                # Update record with error
+                mongo.db.ai_generations.update_one(
+                    {"_id": ObjectId(generation_id)},
+                    {
+                        "$set": {
+                            "status": "error",
+                            "error": str(e),
+                            "completed_at": datetime.utcnow()
+                        }
+                    }
+                )
+        
+        # Start video generation in background
+        thread = threading.Thread(target=generate_video_async)
+        thread.daemon = True
+        thread.start()
+        
+        return jsonify({
+            "message": "Village story video generation started",
+            "generation_id": generation_id,
+            "status": "processing",
+            "estimated_completion": "2-5 minutes"
+        }), 202
+        
+    except Exception as e:
+        print(f"❌ Village story generation error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 @ai_features_bp.route('/village-story-status/<generation_id>', methods=['GET'])
 @jwt_required()
 def get_village_story_status(generation_id):
-   try:
-       user_id = get_jwt_identity()
-       
-       # Get generation record
-       generation = mongo.db.ai_generations.find_one({
-           "_id": ObjectId(generation_id),
-           "host_id": ObjectId(user_id)
-       })
-       
-       if not generation:
-           return jsonify({"error": "Generation not found"}), 404
-       
-       # Mock status update (in production, check actual video generation status)
-       status = "completed" if generation['created_at'] < datetime.utcnow() else "processing"
-       
-       return jsonify({
-           "generation_id": generation_id,
-           "status": status,
-           "video_data": generation['video_data'],
-           "created_at": generation['created_at'].isoformat(),
-           "progress": 100 if status == "completed" else 75
-       }), 200
-       
-   except Exception as e:
-       return jsonify({"error": str(e)}), 500
+    try:
+        user_id = get_jwt_identity()
+        
+        # Get generation record
+        generation = mongo.db.ai_generations.find_one({
+            "_id": ObjectId(generation_id),
+            "host_id": ObjectId(user_id)
+        })
+        
+        if not generation:
+            return jsonify({"error": "Generation not found"}), 404
+        
+        status_response = {
+            "generation_id": generation_id,
+            "status": generation.get('status', 'processing'),
+            "progress": 100 if generation.get('status') == 'completed' else 50,
+            "created_at": generation['created_at'].isoformat(),
+        }
+        
+        if generation.get('video_data'):
+            video_data = generation['video_data']
+            # Ensure URLs are properly formatted
+            status_response["video_data"] = {
+                **video_data,
+                "video_url": f"/api/ai-features/videos/{video_data.get('video_filename', '')}",
+                "download_url": f"/api/ai-features/videos/{video_data.get('video_filename', '')}/download",
+                "stream_url": f"/api/ai-features/videos/{video_data.get('video_filename', '')}/stream"
+            }
+        
+        if generation.get('error'):
+            status_response["error"] = generation['error']
+        
+        return jsonify(status_response), 200
+        
+    except Exception as e:
+        print(f"❌ Status check error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+# ... REST OF YOUR EXISTING AI FEATURES ROUTES ...
+# (voice-to-listing, cultural-concierge, etc. - keep all your existing routes)
 
 # ============ FEATURE 2: VOICE-TO-LISTING MAGIC (GOOGLE SPEECH) ============
 

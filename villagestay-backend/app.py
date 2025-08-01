@@ -1,4 +1,6 @@
-from flask import Flask, jsonify
+# villagestay-backend/app.py
+
+from flask import Flask, jsonify, request, make_response
 from flask_jwt_extended import JWTManager
 from flask_cors import CORS
 from config import Config
@@ -13,17 +15,20 @@ def create_app():
     init_db(app)
     jwt = JWTManager(app)
     
-    # Configure CORS properly
-    CORS(app, resources={
-        r"/api/*": {
-            "origins": ["http://localhost:3000"],
-            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization"]
-        }
-    })
+    # Configure CORS - SIMPLIFIED VERSION
+    CORS(app, 
+         origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
+         allow_headers=["Content-Type", "Authorization", "Range", "Content-Range", "Content-Length"],
+         expose_headers=["Content-Range", "Content-Length", "Accept-Ranges"],
+         supports_credentials=True)
 
-    # Create upload directory
+    # REMOVE the @app.after_request and @app.before_request handlers
+    # They are conflicting with flask-cors
+    
+    # Create directories
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    os.makedirs(app.config['VIDEO_FOLDER'], exist_ok=True)
 
     # Import and register blueprints
     from routes.auth import auth_bp
@@ -33,7 +38,7 @@ def create_app():
     from routes.admin import admin_bp
     from routes.impact import impact_bp
     from routes.ai_features import ai_features_bp
-    from routes.reviews import reviews_bp  # Add this import
+    from routes.reviews import reviews_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(listings_bp, url_prefix='/api/listings')
@@ -42,7 +47,7 @@ def create_app():
     app.register_blueprint(admin_bp, url_prefix='/api/admin')
     app.register_blueprint(impact_bp, url_prefix='/api/impact')
     app.register_blueprint(ai_features_bp, url_prefix='/api/ai-features')
-    app.register_blueprint(reviews_bp, url_prefix='/api/reviews')  # Add this line
+    app.register_blueprint(reviews_bp, url_prefix='/api/reviews')
 
     @app.route('/')
     def health_check():
@@ -50,11 +55,11 @@ def create_app():
             "message": "VillageStay AI-Powered API is running!", 
             "status": "healthy",
             "ai_features": [
-                "AI Village Story Generator",
+                "AI Village Story Generator with Google Veo 3.0",
                 "Voice-to-Listing Magic", 
                 "Cultural Concierge Chat",
                 "Property Image Analysis",
-                "Reviews & Feedback System"  # Add this
+                "Reviews & Feedback System"
             ]
         })
 

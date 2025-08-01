@@ -234,6 +234,11 @@ export const bookingsAPI = {
 // AI Features API
 export const aiAPI = {
 
+ generateVillageStory: (data) => api.post('/api/ai-features/generate-village-story', data),
+  getStoryStatus: (id) => api.get(`/api/ai-features/village-story-status/${id}`),
+  getListingVideos: (listingId) => api.get(`/api/ai-features/listing-videos/${listingId}`),
+  
+
   getWeatherRecommendations: async (locationData) => {
     try {
       const response = await api.post('/api/ai-features/weather-recommendations', locationData);
