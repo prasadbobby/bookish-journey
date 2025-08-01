@@ -1705,12 +1705,11 @@ def get_location_cultural_insights(location):
         return jsonify({"error": str(e)}), 500
 
 
-
 @ai_features_bp.route('/weather-recommendations', methods=['POST'])
 def get_weather_recommendations():
     try:
         data = request.get_json()
-        location = data.get('location', '')
+        location = data.get('location', '').strip()
         
         if not location:
             return jsonify({"error": "Location is required"}), 400
@@ -1722,23 +1721,70 @@ def get_weather_recommendations():
         if not current_weather:
             return jsonify({"error": "Unable to fetch weather data for this location"}), 400
         
-        # Get forecast
+        # Get forecast data
         forecast_data = weather_service.get_weather_forecast(location, days=3)
         
-        # Generate recommendations
+        # Generate recommendations based on current weather
         recommendations = get_weather_based_recommendations(location, current_weather, forecast_data)
+        
+        # Prepare forecast list - handle the data structure properly
+        forecast_list = []
+        if forecast_data and 'daily_forecast' in forecast_data:
+            # Convert daily forecast to hourly-like format for frontend compatibility
+            for day in forecast_data['daily_forecast'][:3]:  # Next 3 days
+                # Add multiple entries per day to simulate hourly data
+                for hour_offset in [0, 6, 12, 18]:  # 4 times per day
+                    forecast_entry = {
+                        'datetime': day['date'].strftime('%Y-%m-%d') + f'T{hour_offset:02d}:00:00',
+                        'temperature': (day['temp_min'] + day['temp_max']) / 2,
+                        'description': day['description'],
+                        'main': day['main'],
+                        'humidity': day['humidity'],
+                        'wind_speed': day['wind_speed'],
+                        'rain': day.get('rain', 0)
+                    }
+                    forecast_list.append(forecast_entry)
         
         return jsonify({
             "location": location,
             "current_weather": current_weather,
-            "forecast": forecast_data['forecast'][:24] if forecast_data else [],  # Next 3 days
+            "forecast": forecast_list,  # Properly formatted forecast
             "recommendations": recommendations,
+            "search_insights": {
+                "best_activities": [rec['activity'] for rec in recommendations[:3]],
+                "weather_trend": f"Current conditions are {current_weather['description']} with {current_weather['temperature']}°C - perfect for outdoor village activities!"
+            },
             "generated_at": datetime.utcnow().isoformat()
         }), 200
         
     except Exception as e:
         print(f"❌ Weather recommendations error: {str(e)}")
+        import traceback
+        traceback.print_exc()  # This will help debug the exact error
         return jsonify({"error": f"Failed to get weather recommendations: {str(e)}"}), 500
+    
+@ai_features_bp.route('/weekly-weather-prediction', methods=['POST'])
+def get_weekly_weather_prediction():
+    try:
+        data = request.get_json()
+        location = data.get('location', '').strip()
+        
+        if not location:
+            return jsonify({"error": "Location is required"}), 400
+        
+        print(f"📅 Getting weekly weather prediction for: {location}")
+        
+        # Get weekly weather prediction
+        weekly_prediction = weather_service.get_weekly_weather_prediction(location)
+        
+        if not weekly_prediction:
+            return jsonify({"error": "Unable to get weather prediction for this location"}), 400
+        
+        return jsonify(weekly_prediction), 200
+        
+    except Exception as e:
+        print(f"❌ Weekly weather prediction error: {str(e)}")
+        return jsonify({"error": f"Failed to get weather prediction: {str(e)}"}), 500
 
 @ai_features_bp.route('/weather-enhanced-search', methods=['POST'])
 def weather_enhanced_search():
@@ -1746,7 +1792,7 @@ def weather_enhanced_search():
         data = request.get_json()
         
         # Search parameters
-        location = data.get('location', '')
+        location = data.get('location', '').strip()
         check_in = data.get('check_in')
         check_out = data.get('check_out')
         preferences = data.get('preferences', [])  # ['outdoor', 'cultural', 'farming', etc.]
@@ -1758,10 +1804,10 @@ def weather_enhanced_search():
         
         # Get weather data
         current_weather = weather_service.get_current_weather(location)
-        forecast_data = weather_service.get_weather_forecast(location, days=7)
-        
         if not current_weather:
             return jsonify({"error": "Unable to fetch weather data"}), 400
+        
+        forecast_data = weather_service.get_weather_forecast(location, days=7)
         
         # Get weather recommendations
         recommendations = get_weather_based_recommendations(location, current_weather, forecast_data)
@@ -1776,7 +1822,6 @@ def weather_enhanced_search():
                 recommendations = filtered_recommendations
         
         # Get listings for the location
-        from database import mongo
         listings_query = {
             "location": {"$regex": location, "$options": "i"},
             "is_active": True,
@@ -1788,21 +1833,39 @@ def weather_enhanced_search():
         # Score listings based on weather suitability
         scored_listings = []
         for listing in listings:
-            score = calculate_weather_suitability_score(listing, current_weather, recommendations)
-            
-            formatted_listing = {
-                "id": str(listing['_id']),
-                "title": listing['title'],
-                "location": listing['location'],
-                "price_per_night": listing['price_per_night'],
-                "property_type": listing['property_type'],
-                "amenities": listing.get('amenities', []),
-                "images": listing.get('images', []),
-                "rating": listing.get('rating', 0),
-                "weather_suitability_score": score,
-                "suitable_activities": get_suitable_activities_for_listing(listing, recommendations)
-            }
-            scored_listings.append(formatted_listing)
+            try:
+                # Get host info
+                host = mongo.db.users.find_one({"_id": listing['host_id']})
+                
+                score = calculate_weather_suitability_score(listing, current_weather, recommendations)
+                
+                formatted_listing = {
+                    "id": str(listing['_id']),
+                    "title": listing['title'],
+                    "description": listing.get('description', ''),
+                    "location": listing['location'],
+                    "price_per_night": listing['price_per_night'],
+                    "property_type": listing['property_type'],
+                    "amenities": listing.get('amenities', []),
+                    "images": listing.get('images', []),
+                    "coordinates": listing.get('coordinates', {}),
+                    "max_guests": listing.get('max_guests', 4),
+                    "rating": listing.get('rating', 0),
+                    "review_count": listing.get('review_count', 0),
+                    "sustainability_features": listing.get('sustainability_features', []),
+                    "weather_suitability_score": score,
+                    "suitable_activities": get_suitable_activities_for_listing(listing, recommendations),
+                    "host": {
+                        "id": str(host['_id']),
+                        "full_name": host['full_name'],
+                        "profile_image": host.get('profile_image')
+                    } if host else None,
+                    "created_at": listing['created_at'].isoformat() if 'created_at' in listing else datetime.utcnow().isoformat()
+                }
+                scored_listings.append(formatted_listing)
+            except Exception as listing_error:
+                print(f"Error processing listing {listing.get('_id')}: {listing_error}")
+                continue
         
         # Sort by weather suitability
         scored_listings.sort(key=lambda x: x['weather_suitability_score'], reverse=True)
@@ -1815,129 +1878,148 @@ def weather_enhanced_search():
             "search_insights": {
                 "weather_summary": f"Current: {current_weather['description']}, {current_weather['temperature']}°C",
                 "best_activities": [rec['activity'] for rec in recommendations[:3]],
-                "weather_trend": analyze_weather_trend(forecast_data)
+                "weather_trend": analyze_weather_trend(forecast_data) if forecast_data else "Weather trend analysis not available"
             }
         }), 200
         
     except Exception as e:
         print(f"❌ Weather-enhanced search error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": f"Search failed: {str(e)}"}), 500
 
+def analyze_weather_trend(forecast_data):
+    """Analyze weather trend from forecast data"""
+    try:
+        if not forecast_data or 'daily_forecast' not in forecast_data:
+            return "Weather data not available for trend analysis"
+        
+        daily_forecasts = forecast_data['daily_forecast']
+        if not daily_forecasts or len(daily_forecasts) < 2:
+            return "Current weather looks stable for the next few days"
+        
+        # Analyze temperature trend
+        temps = []
+        for day in daily_forecasts[:3]:
+            if isinstance(day.get('temp_min'), (int, float)) and isinstance(day.get('temp_max'), (int, float)):
+                temps.append((day['temp_min'] + day['temp_max']) / 2)
+        
+        if len(temps) < 2:
+            return "Current weather looks stable for the next few days"
+        
+        # Check temperature trend
+        if temps[1] > temps[0] + 2:
+            trend = "getting warmer"
+        elif temps[1] < temps[0] - 2:
+            trend = "getting cooler"
+        else:
+            trend = "remaining stable"
+        
+        # Check for rain
+        rain_days = sum(1 for day in daily_forecasts[:3] if 'rain' in str(day.get('main', '')).lower())
+        
+        if rain_days >= 2:
+            weather_note = "with some rainy days expected"
+        elif rain_days == 1:
+            weather_note = "with occasional rain possible"
+        else:
+            weather_note = "with mostly clear skies"
+        
+        return f"Weather is {trend} over the next few days {weather_note}"
+    
+    except Exception as e:
+        print(f"Error analyzing weather trend: {e}")
+        return "Weather trend analysis not available"
+    
+# Helper functions
 def calculate_weather_suitability_score(listing, current_weather, recommendations):
-    """Calculate how suitable a listing is for current weather"""
-    score = 50  # Base score
+    """Calculate how suitable a listing is for current weather conditions"""
+    score = 0
+    base_score = 50  # Base score for all listings
     
-    amenities = [amenity.lower() for amenity in listing.get('amenities', [])]
-    property_type = listing.get('property_type', '').lower()
-    
-    # Weather-based scoring
+    # Property type bonuses based on weather
     temp = current_weather['temperature']
-    main_weather = current_weather['main'].lower()
+    weather_main = current_weather['main'].lower()
     
-    # Temperature scoring
-    if temp > 35:  # Very hot
-        if any(amenity in amenities for amenity in ['air conditioning', 'fan', 'swimming pool']):
-            score += 20
-        if any(amenity in amenities for amenity in ['indoor activities', 'cooking class']):
-            score += 15
-    elif temp < 10:  # Cold
-        if any(amenity in amenities for amenity in ['fireplace', 'heater', 'bonfire']):
-            score += 20
-        if 'hot water' in amenities:
-            score += 10
-    else:  # Comfortable temperature
-        if any(amenity in amenities for amenity in ['outdoor activities', 'cycling', 'trekking']):
-            score += 15
+    property_type = listing.get('property_type', '').lower()
+    amenities = [a.lower() for a in listing.get('amenities', [])]
     
-    # Weather condition scoring
-    if 'rain' in main_weather:
-        if any(amenity in amenities for amenity in ['indoor games', 'library', 'handicraft']):
+    # Temperature-based scoring
+    if temp > 30:  # Hot weather
+        if 'swimming' in ' '.join(amenities) or 'pool' in ' '.join(amenities):
+            score += 20
+        if 'air_conditioning' in ' '.join(amenities) or 'ac' in ' '.join(amenities):
             score += 15
-        if property_type in ['heritage_home', 'cottage']:
+        if property_type in ['eco_lodge', 'cottage']:
             score += 10
-    elif 'clear' in main_weather:
-        if any(amenity in amenities for amenity in ['garden', 'terrace', 'outdoor seating']):
+    elif temp < 15:  # Cold weather
+        if 'fireplace' in ' '.join(amenities) or 'heating' in ' '.join(amenities):
+            score += 20
+        if property_type in ['homestay', 'heritage_home']:
+            score += 15
+    else:  # Pleasant weather
+        score += 10  # All properties get bonus for good weather
+    
+    # Weather condition bonuses
+    if 'rain' in weather_main:
+        if 'indoor_activities' in ' '.join(amenities) or 'cooking' in ' '.join(amenities):
+            score += 15
+        if property_type in ['homestay', 'heritage_home']:
+            score += 10
+    elif 'clear' in weather_main:
+        if 'outdoor_activities' in ' '.join(amenities) or 'garden' in ' '.join(amenities):
             score += 15
         if property_type in ['farmstay', 'eco_lodge']:
             score += 10
     
-    # Activity alignment scoring
-    for rec in recommendations:
-        category = rec['category']
-        if category == 'farming' and 'farmstay' in property_type:
-            score += 10
-        elif category == 'cultural' and any(amenity in amenities for amenity in ['cultural performances', 'traditional dance']):
-            score += 10
-        elif category == 'outdoor' and any(amenity in amenities for amenity in ['nature walks', 'trekking', 'cycling']):
-            score += 10
+    # Activity matching bonus
+    listing_amenities_text = ' '.join(amenities).lower()
+    for rec in recommendations[:5]:  # Top 5 recommendations
+        activity_keywords = rec['activity'].lower().split()
+        for keyword in activity_keywords:
+            if keyword in listing_amenities_text:
+                score += 5
     
-    return min(100, max(0, score))
+    # Sustainability bonus for eco-conscious travelers
+    if listing.get('sustainability_features'):
+        score += 10
+    
+    return min(base_score + score, 100)  # Cap at 100
 
 def get_suitable_activities_for_listing(listing, recommendations):
-    """Get activities that are suitable for this listing given current weather"""
-    amenities = [amenity.lower() for amenity in listing.get('amenities', [])]
-    property_type = listing.get('property_type', '').lower()
-    
+    """Get activities that are suitable for this listing based on weather recommendations"""
     suitable_activities = []
+    amenities = [a.lower() for a in listing.get('amenities', [])]
+    amenities_text = ' '.join(amenities)
     
     for rec in recommendations:
-        is_suitable = False
+        activity = rec['activity']
+        category = rec['category']
         
         # Check if listing supports this activity
-        category = rec['category']
-        activity = rec['activity'].lower()
+        is_suitable = False
         
-        if category == 'farming' and ('farm' in property_type or any('farm' in amenity for amenity in amenities)):
+        if category == 'outdoor' and any(keyword in amenities_text for keyword in ['garden', 'outdoor', 'cycling', 'walking']):
             is_suitable = True
-        elif category == 'cultural' and any(cultural_term in amenity for amenity in amenities for cultural_term in ['cultural', 'traditional', 'dance', 'music']):
+        elif category == 'cultural' and any(keyword in amenities_text for keyword in ['cultural', 'traditional', 'local', 'heritage']):
             is_suitable = True
-        elif category == 'outdoor' and any(outdoor_term in amenity for amenity in amenities for outdoor_term in ['outdoor', 'cycling', 'trekking', 'nature']):
+        elif category == 'cooking' and any(keyword in amenities_text for keyword in ['cooking', 'kitchen', 'meals', 'traditional']):
             is_suitable = True
-        elif category == 'craft' and any(craft_term in amenity for amenity in amenities for craft_term in ['handicraft', 'pottery', 'weaving']):
+        elif category == 'farming' and any(keyword in amenities_text for keyword in ['farm', 'organic', 'agricultural', 'harvesting']):
             is_suitable = True
-        elif category == 'wellness' and any(wellness_term in amenity for amenity in amenities for wellness_term in ['yoga', 'meditation', 'spa']):
-            is_suitable = True
-        elif 'cooking' in activity and any(cooking_term in amenity for amenity in amenities for cooking_term in ['cooking', 'kitchen', 'meal']):
+        elif category == 'craft' and any(keyword in amenities_text for keyword in ['workshop', 'craft', 'pottery', 'handicraft']):
             is_suitable = True
         
         if is_suitable:
             suitable_activities.append({
-                'activity': rec['activity'],
-                'best_time': rec['best_time'],
-                'reason': rec['reason']
+                'activity': activity,
+                'category': category,
+                'reason': rec['reason'],
+                'best_time': rec['best_time']
             })
     
-    return suitable_activities[:5]  # Top 5 suitable activities
+    return suitable_activities[:3]  # Return top 3
 
-def analyze_weather_trend(forecast_data):
-    """Analyze weather trend for next few days"""
-    if not forecast_data or not forecast_data.get('forecast'):
-        return "Weather data unavailable"
-    
-    forecasts = forecast_data['forecast'][:24]  # Next 3 days (8 forecasts per day)
-    
-    # Analyze temperature trend
-    temps = [f['temperature'] for f in forecasts]
-    avg_temp = sum(temps) / len(temps)
-    
-    # Analyze rain probability
-    rain_forecasts = [f for f in forecasts if f['rain'] > 0]
-    rain_probability = len(rain_forecasts) / len(forecasts) * 100
-    
-    # Analyze weather conditions
-    weather_conditions = [f['main'].lower() for f in forecasts]
-    most_common_weather = max(set(weather_conditions), key=weather_conditions.count)
-    
-    trend = f"Expect {most_common_weather} weather with average temperature {avg_temp:.1f}°C"
-    
-    if rain_probability > 50:
-        trend += f". High chance of rain ({rain_probability:.0f}%)"
-    elif rain_probability > 20:
-        trend += f". Some rain expected ({rain_probability:.0f}%)"
-    else:
-        trend += ". Mostly dry weather expected"
-    
-    return trend
 
 
 # ============ AI IMAGE ANALYSIS ROUTES ============

@@ -244,6 +244,16 @@ export const aiAPI = {
     }
   },
 
+  getWeeklyWeatherPrediction: async (locationData) => {
+    try {
+      const response = await api.post('/api/ai-features/weekly-weather-prediction', locationData);
+      return response.data;
+    } catch (error) {
+      console.error('Weekly weather prediction failed:', error);
+      throw error;
+    }
+  },
+
   getWeatherEnhancedSearch: async (searchData) => {
     try {
       const response = await api.post('/api/ai-features/weather-enhanced-search', searchData);
