@@ -1,4 +1,3 @@
-// src/app/tourist/bookings/page.js
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -13,12 +12,15 @@ import {
   XCircleIcon,
   CheckCircleIcon,
   ClockIcon,
-  ChatBubbleLeftRightIcon
+  ChatBubbleLeftRightIcon,
+  HomeIcon,
+  AcademicCapIcon,
+  UsersIcon
 } from '@heroicons/react/24/outline';
-import { bookingsAPI, reviewsAPI } from '@/lib/api'; // Add reviewsAPI import
+import { bookingsAPI, reviewsAPI } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { formatCurrency, formatDate, getStatusColor } from '@/lib/utils';
-import CreateReview from '@/components/reviews/CreateReview'; // Add this import
+import { formatCurrency, formatDate, getStatusColor, getImagePlaceholder } from '@/lib/utils';
+import CreateReview from '@/components/reviews/CreateReview';
 import toast from 'react-hot-toast';
 
 const TouristBookingsPage = () => {
@@ -69,8 +71,10 @@ const TouristBookingsPage = () => {
     
     // Only check for completed bookings
     const completedBookings = bookings.filter(booking => 
-      booking.status === 'completed' && 
-      new Date(booking.check_out) < new Date()
+      booking.status === 'completed' && (
+        (booking.listing_type === 'experience' && new Date(booking.experience_date) < new Date()) ||
+        (booking.listing_type !== 'experience' && new Date(booking.check_out) < new Date())
+      )
     );
 
     for (const booking of completedBookings) {
@@ -113,6 +117,38 @@ const TouristBookingsPage = () => {
     fetchBookings();
   };
 
+  const getBookingTypeIcon = (booking) => {
+    return booking.listing_type === 'experience' ? (
+      <AcademicCapIcon className="w-4 h-4 text-purple-500" />
+    ) : (
+      <HomeIcon className="w-4 h-4 text-blue-500" />
+    );
+  };
+
+  const getBookingTypeBadge = (booking) => {
+    return booking.listing_type === 'experience' ? (
+      <span className="text-sm text-purple-600 font-medium">Experience</span>
+    ) : (
+      <span className="text-sm text-blue-600 font-medium">Homestay</span>
+    );
+  };
+
+  const isUpcoming = (booking) => {
+    if (booking.listing_type === 'experience') {
+      return new Date(booking.experience_date) > new Date();
+    } else {
+      return new Date(booking.check_in) > new Date();
+    }
+  };
+
+  const isPast = (booking) => {
+    if (booking.listing_type === 'experience') {
+      return new Date(booking.experience_date) < new Date();
+    } else {
+      return new Date(booking.check_out) < new Date();
+    }
+  };
+
   if (!isTourist) {
     return (
       <div className="min-h-screen village-bg pt-20 flex items-center justify-center">
@@ -124,8 +160,8 @@ const TouristBookingsPage = () => {
     );
   }
 
-  const upcomingTrips = bookings.filter(b => new Date(b.check_in) > new Date());
-  const pastTrips = bookings.filter(b => new Date(b.check_out) < new Date());
+  const upcomingTrips = bookings.filter(b => isUpcoming(b));
+  const pastTrips = bookings.filter(b => isPast(b));
 
   return (
     <div className="min-h-screen village-bg pt-20">
@@ -165,9 +201,15 @@ const TouristBookingsPage = () => {
                   className="card p-0 overflow-hidden"
                 >
                   <img
-                    src={booking.listing?.images?.[0] || 'https://via.placeholder.com/400x200/22c55e/ffffff?text=Village+Stay'}
+                    src={
+                      booking.listing?.images?.[0] || 
+                      getImagePlaceholder(400, 200, booking.listing?.title || 'Village Stay')
+                    }
                     alt={booking.listing?.title}
                     className="w-full h-48 object-cover"
+                    onError={(e) => {
+                      e.target.src = getImagePlaceholder(400, 200, booking.listing?.title || 'Village Stay');
+                    }}
                   />
                   
                   <div className="p-6">
@@ -175,7 +217,10 @@ const TouristBookingsPage = () => {
                       <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(booking.status)}`}>
                         {booking.status}
                       </span>
-                      <span className="text-sm text-gray-500">{booking.nights} nights</span>
+                      <div className="flex items-center space-x-2">
+                        {getBookingTypeIcon(booking)}
+                        {getBookingTypeBadge(booking)}
+                      </div>
                     </div>
                     
                     <h3 className="font-semibold text-gray-900 mb-2">
@@ -188,14 +233,45 @@ const TouristBookingsPage = () => {
                     </div>
                     
                     <div className="space-y-2 text-sm text-gray-600 mb-4">
-                      <div className="flex justify-between">
-                        <span>Check-in:</span>
-                        <span className="font-medium">{formatDate(booking.check_in)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Check-out:</span>
-                        <span className="font-medium">{formatDate(booking.check_out)}</span>
-                      </div>
+                      {booking.listing_type === 'experience' ? (
+                        <>
+                          <div className="flex justify-between">
+                            <span>Date:</span>
+                            <span className="font-medium">{formatDate(booking.experience_date)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Time:</span>
+                            <span className="font-medium">{booking.experience_time}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Participants:</span>
+                            <span className="font-medium">{booking.participants}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Duration:</span>
+                            <span className="font-medium">{booking.duration} hours</span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex justify-between">
+                            <span>Check-in:</span>
+                            <span className="font-medium">{formatDate(booking.check_in)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Check-out:</span>
+                            <span className="font-medium">{formatDate(booking.check_out)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Guests:</span>
+                            <span className="font-medium">{booking.guests}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Nights:</span>
+                            <span className="font-medium">{booking.nights}</span>
+                          </div>
+                        </>
+                      )}
                       <div className="flex justify-between">
                         <span>Total:</span>
                         <span className="font-bold text-gray-900">{formatCurrency(booking.total_amount)}</span>
@@ -214,6 +290,7 @@ const TouristBookingsPage = () => {
                         <button
                           onClick={() => handleCancelBooking(booking.id)}
                           className="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
+                          title="Cancel booking"
                         >
                           <XCircleIcon className="w-4 h-4" />
                         </button>
@@ -228,9 +305,16 @@ const TouristBookingsPage = () => {
               <CalendarDaysIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">No upcoming trips</h3>
               <p className="text-gray-600 mb-6">Plan your next village adventure</p>
-              <Link href="/listings" className="btn-primary">
-                Explore Villages
-              </Link>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Link href="/listings" className="btn-primary">
+                  <HomeIcon className="w-5 h-5 mr-2" />
+                  Explore Homestays
+                </Link>
+                <Link href="/experiences" className="btn-secondary">
+                  <AcademicCapIcon className="w-5 h-5 mr-2" />
+                  Find Experiences
+                </Link>
+              </div>
             </div>
           )}
         </div>
@@ -255,9 +339,15 @@ const TouristBookingsPage = () => {
                     className="card p-0 overflow-hidden"
                   >
                     <img
-                      src={booking.listing?.images?.[0] || 'https://via.placeholder.com/400x200/22c55e/ffffff?text=Village+Memory'}
+                      src={
+                        booking.listing?.images?.[0] || 
+                        getImagePlaceholder(400, 200, booking.listing?.title || 'Village Memory')
+                      }
                       alt={booking.listing?.title}
                       className="w-full h-48 object-cover"
+                      onError={(e) => {
+                        e.target.src = getImagePlaceholder(400, 200, booking.listing?.title || 'Village Memory');
+                      }}
                     />
                     
                     <div className="p-6">
@@ -284,7 +374,10 @@ const TouristBookingsPage = () => {
                             </div>
                           )}
                         </div>
-                        <span className="text-sm text-gray-500">{formatDate(booking.check_in)}</span>
+                        <div className="flex items-center space-x-2">
+                          {getBookingTypeIcon(booking)}
+                          {getBookingTypeBadge(booking)}
+                        </div>
                       </div>
                       
                       <h3 className="font-semibold text-gray-900 mb-2">
@@ -294,6 +387,37 @@ const TouristBookingsPage = () => {
                       <div className="flex items-center space-x-1 text-gray-600 mb-3">
                         <MapPinIcon className="w-4 h-4" />
                         <span className="text-sm">{booking.listing?.location}</span>
+                      </div>
+
+                      {/* Trip details based on type */}
+                      <div className="space-y-1 text-sm text-gray-600 mb-4">
+                        {booking.listing_type === 'experience' ? (
+                          <>
+                            <div className="flex justify-between">
+                              <span>Date:</span>
+                              <span>{formatDate(booking.experience_date)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Participants:</span>
+                              <span>{booking.participants}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Category:</span>
+                              <span className="capitalize">{booking.category}</span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex justify-between">
+                              <span>Check-in:</span>
+                              <span>{formatDate(booking.check_in)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Nights:</span>
+                              <span>{booking.nights}</span>
+                            </div>
+                          </>
+                        )}
                       </div>
                       
                       <div className="flex space-x-2">
@@ -309,6 +433,7 @@ const TouristBookingsPage = () => {
                           <button 
                             onClick={() => handleWriteReview(booking)}
                             className="px-3 py-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors duration-200 flex items-center space-x-1"
+                            title="Write a review"
                           >
                             <StarIcon className="w-4 h-4" />
                             <span className="text-sm">Review</span>
@@ -322,6 +447,7 @@ const TouristBookingsPage = () => {
                           <button 
                             disabled
                             className="px-3 py-2 text-gray-400 bg-gray-50 rounded-lg flex items-center space-x-1 cursor-not-allowed"
+                            title="Review not available"
                           >
                             <StarIcon className="w-4 h-4" />
                             <span className="text-sm">Review</span>

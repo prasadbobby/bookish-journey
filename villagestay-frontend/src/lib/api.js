@@ -96,6 +96,7 @@ export const getImagePlaceholder = (width = 400, height = 240, title = 'Village 
   // Return a simple placeholder image path
   return '/images/placeholder-village.jpg';
 };
+
 // Auth API
 export const authAPI = {
   register: (userData) => api.post('/api/auth/register', userData),
@@ -409,9 +410,7 @@ export const listingsAPI = {
   }
 };
 
-
 // Add these to your API object as well
-
 export const experiencesAPI = {
   // Direct experience operations
   getAll: (params) => api.get('/api/experiences/', { params }),
@@ -462,26 +461,39 @@ export const universalAPI = {
   }
 };
 
-// Bookings API
+// Bookings API - FIXED
 export const bookingsAPI = {
   create: (data) => api.post('/api/bookings/', data),
   getAll: (params) => api.get('/api/bookings/', { params }),
   getById: (id) => api.get(`/api/bookings/${id}`),
+  
+  // Fixed payment completion methods - using 'api' instead of 'apiClient'
   completePayment: async (bookingId, paymentData) => {
-  const response = await api.post(`/api/bookings/${bookingId}/payment`, paymentData);
-  return response.data;
-},
+    const response = await api.post(`/api/bookings/${bookingId}/complete-payment`, paymentData);
+    return response.data;
+  },
+  
+  // Alternative payment confirmation methods in case your backend uses different endpoints
+  confirmPayment: async (bookingId, paymentData) => {
+    const response = await api.post(`/api/bookings/${bookingId}/confirm-payment`, paymentData);
+    return response.data;
+  },
+  
+  confirm: async (bookingId, paymentData) => {
+    const response = await api.post(`/api/bookings/${bookingId}/confirm`, paymentData);
+    return response.data;
+  },
+  
+  // Other booking methods
   cancel: (id, data) => api.post(`/api/bookings/${id}/cancel`, data),
   complete: (id) => api.post(`/api/bookings/${id}/complete`),
 };
 
 // AI Features API
 export const aiAPI = {
-
- generateVillageStory: (data) => api.post('/api/ai-features/generate-village-story', data),
+  generateVillageStory: (data) => api.post('/api/ai-features/generate-village-story', data),
   getStoryStatus: (id) => api.get(`/api/ai-features/village-story-status/${id}`),
   getListingVideos: (listingId) => api.get(`/api/ai-features/listing-videos/${listingId}`),
-  
 
   getWeatherRecommendations: async (locationData) => {
     try {
@@ -512,6 +524,7 @@ export const aiAPI = {
       throw error;
     }
   },
+  
   // Voice to Listing - use the file upload instance
   voiceToListing: (data) => apiWithFiles.post('/api/ai-features/voice-to-listing', data),
   createListingFromVoice: (data) => api.post('/api/ai-features/create-listing-from-voice', data),
@@ -621,8 +634,7 @@ export const impactAPI = {
 
 // Admin API
 export const adminAPI = {
-
-    getDashboard: (params) => api.get('/api/admin/dashboard', { params }),
+  getDashboard: (params) => api.get('/api/admin/dashboard', { params }),
   
   // Users management
   getUsers: (params) => api.get('/api/admin/users', { params }),
@@ -739,36 +751,9 @@ export const streamingUtils = {
   }
 };
 
-
 // Add to src/lib/api.js
-
 export const callsAPI = {
   initiateBookingCall: () => api.post('/api/bookings/initiate-call'),
 };
 
-// Then in the dashboard, replace the triggerBookingCall function with:
-const triggerBookingCall = async () => {
-  if (!user?.phone) {
-    toast.error('Phone number not found. Please update your profile.');
-    return;
-  }
-
-  setCallingInProgress(true);
-  
-  try {
-    // Optional: Log call in backend
-    await callsAPI.initiateBookingCall();
-    
-    // Show initial success message
-    toast.success(`🔄 Initiating call to ${user.phone}... Maya will call you in 10-15 seconds!`, {
-      duration: 5000
-    });
-
-    // Rest of the ElevenLabs API call remains the same...
-  } catch (error) {
-    toast.error(`❌ Failed to initiate call: ${error.message}`);
-  } finally {
-    setCallingInProgress(false);
-  }
-};
 export default api;

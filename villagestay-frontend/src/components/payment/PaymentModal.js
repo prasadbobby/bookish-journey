@@ -114,49 +114,77 @@ const handlePayment = async () => {
           </button>
         </div>
 
-        {/* Booking Summary */}
-        <div className="p-6 bg-gray-50">
-          <h3 className="font-semibold text-gray-900 mb-3">Booking Summary</h3>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span>Property:</span>
-              <span className="font-medium">{booking.listing_title || 'Village Stay'}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Dates:</span>
-              <span>{booking.check_in} to {booking.check_out}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Guests:</span>
-              <span>{booking.guests}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Nights:</span>
-              <span>{booking.nights}</span>
-            </div>
-            
-            {/* Detailed breakdown */}
-            {booking.base_amount && (
-              <>
-                <div className="flex justify-between">
-                  <span>Base Amount:</span>
-                  <span>{formatCurrency(booking.base_amount)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Platform Fee:</span>
-                  <span>{formatCurrency(booking.platform_fee || 0)}</span>
-                </div>
-              </>
-            )}
-            
-            <div className="border-t pt-2 mt-2">
-              <div className="flex justify-between font-semibold text-lg">
-                <span>Total Amount:</span>
-                <span className="text-green-600">{formatCurrency(totalAmount)}</span>
-              </div>
-            </div>
-          </div>
+       {/* Booking Summary */}
+<div className="p-6 bg-gray-50">
+  <h3 className="font-semibold text-gray-900 mb-3">Booking Summary</h3>
+  <div className="space-y-2 text-sm">
+    <div className="flex justify-between">
+      <span>{booking.listing_type === 'experience' ? 'Experience:' : 'Property:'}</span>
+      <span className="font-medium">{booking.listing_title || 'Village Stay'}</span>
+    </div>
+    
+    {booking.listing_type === 'experience' ? (
+      <>
+        <div className="flex justify-between">
+          <span>Date:</span>
+          <span>{booking.experience_date}</span>
         </div>
+        <div className="flex justify-between">
+          <span>Time:</span>
+          <span>{booking.experience_time}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Participants:</span>
+          <span>{booking.participants}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Duration:</span>
+          <span>{booking.duration} hours</span>
+        </div>
+      </>
+    ) : (
+      <>
+        <div className="flex justify-between">
+          <span>Dates:</span>
+          <span>{booking.check_in} to {booking.check_out}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Guests:</span>
+          <span>{booking.guests}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Nights:</span>
+          <span>{booking.nights}</span>
+        </div>
+      </>
+    )}
+    
+    {/* Detailed breakdown */}
+    {booking.base_amount && (
+      <>
+        <div className="flex justify-between">
+          <span>Base Amount:</span>
+          <span>{formatCurrency(booking.base_amount)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Platform Fee:</span>
+          <span>{formatCurrency(booking.platform_fee || 0)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Community Fund:</span>
+          <span>{formatCurrency(booking.community_contribution || 0)}</span>
+        </div>
+      </>
+    )}
+    
+    <div className="border-t pt-2 mt-2">
+      <div className="flex justify-between font-semibold text-lg">
+        <span>Total Amount:</span>
+        <span className="text-green-600">{formatCurrency(totalAmount)}</span>
+      </div>
+    </div>
+  </div>
+</div>
 
         {/* Rest of the component remains the same... */}
         {/* Payment Methods */}
