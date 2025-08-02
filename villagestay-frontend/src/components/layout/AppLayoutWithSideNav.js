@@ -6,6 +6,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import SideNav from './SideNav';
 import Footer from './Footer';
+import LanguageSelector from '@/components/ui/LanguageSelector';
+import TranslationStatus from '@/components/ui/TranslationStatus';
 import { 
   ChevronDownIcon,
   UserCircleIcon,
@@ -15,7 +17,8 @@ import {
   Bars3Icon,
   SparklesIcon,
   ChatBubbleLeftRightIcon,
-  MicrophoneIcon
+  MicrophoneIcon,
+  GlobeAltIcon
 } from '@heroicons/react/24/outline';
 
 const AppLayoutWithSideNav = ({ children }) => {
@@ -198,12 +201,18 @@ const AppLayoutWithSideNav = ({ children }) => {
                 <p className="text-sm text-gray-500">{pageInfo.subtitle}</p>
               </div>
 
-              {/* Right Side - Quick Actions, Notifications & Profile */}
+              {/* Right Side - Language, Translation Status, Quick Actions, Notifications & Profile */}
               <div className="flex items-center space-x-4">
                 
+                {/* Language Selector & Translation Status */}
+                <div className="hidden md:flex items-center space-x-3">
+                  <LanguageSelector showLabel={false} />
+                  <TranslationStatus />
+                </div>
+
                 {/* Role-specific Quick Actions */}
                 {quickActions.length > 0 && (
-                  <div className="hidden md:flex items-center space-x-2">
+                  <div className="hidden lg:flex items-center space-x-2">
                     {quickActions.map((action, index) => (
                       <Link 
                         key={index}
@@ -218,7 +227,7 @@ const AppLayoutWithSideNav = ({ children }) => {
 
                 {/* AI Feature Highlight for Tourists */}
                 {isTourist && (
-                  <div className="hidden lg:flex items-center space-x-2 px-3 py-2 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border border-purple-200">
+                  <div className="hidden xl:flex items-center space-x-2 px-3 py-2 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border border-purple-200">
                     <SparklesIcon className="w-4 h-4 text-purple-500" />
                     <span className="text-sm font-medium text-purple-700">AI Guide Available</span>
                   </div>
@@ -226,7 +235,7 @@ const AppLayoutWithSideNav = ({ children }) => {
 
                 {/* AI Feature Highlight for Hosts */}
                 {isHost && (
-                  <div className="hidden lg:flex items-center space-x-2 px-3 py-2 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border border-green-200">
+                  <div className="hidden xl:flex items-center space-x-2 px-3 py-2 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border border-green-200">
                     <MicrophoneIcon className="w-4 h-4 text-green-500" />
                     <span className="text-sm font-medium text-green-700">AI Tools Ready</span>
                   </div>
@@ -316,6 +325,20 @@ const AppLayoutWithSideNav = ({ children }) => {
                                 )}
                               </div>
                             </div>
+                          </div>
+                        </div>
+
+                        {/* Language Selector in Profile Menu (Mobile) */}
+                        <div className="px-4 py-3 border-b border-gray-100 md:hidden">
+                          <div className="flex items-center space-x-2 mb-2">
+                            <GlobeAltIcon className="w-4 h-4 text-gray-500" />
+                            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                              Language & Translation
+                            </span>
+                          </div>
+                          <div className="space-y-2">
+                            <LanguageSelector showLabel={true} className="w-full" />
+                            <TranslationStatus className="w-full justify-center" />
                           </div>
                         </div>
                         
@@ -414,6 +437,92 @@ const AppLayoutWithSideNav = ({ children }) => {
             </div>
           </div>
         </header>
+        
+        {/* Mobile Navigation Overlay */}
+        {showMobileNav && (
+          <div className="lg:hidden fixed inset-0 z-50 bg-black bg-opacity-50" onClick={() => setShowMobileNav(false)}>
+            <div className="fixed top-0 left-0 w-80 h-full bg-white shadow-xl transform transition-transform duration-300">
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center">
+                      <span className="text-white font-bold text-lg">V</span>
+                    </div>
+                    <div>
+                      <h1 className="text-lg font-bold text-gray-900">VillageStay</h1>
+                      <p className="text-xs text-gray-500">AI-Powered Platform</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setShowMobileNav(false)}
+                    className="p-2 rounded-lg text-gray-400 hover:text-gray-600"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Mobile Language Selector */}
+                <div className="mb-6 p-4 bg-gray-50 rounded-xl">
+                  <div className="flex items-center space-x-2 mb-3">
+                    <GlobeAltIcon className="w-4 h-4 text-gray-500" />
+                    <span className="text-sm font-medium text-gray-700">Language & Translation</span>
+                  </div>
+                  <LanguageSelector showLabel={true} className="w-full mb-2" />
+                  <TranslationStatus className="w-full justify-center" />
+                </div>
+
+                {/* Mobile Quick Actions */}
+                {quickActions.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="text-sm font-medium text-gray-500 mb-3">Quick Actions</h3>
+                    <div className="space-y-2">
+                      {quickActions.map((action, index) => (
+                        <Link 
+                          key={index}
+                          href={action.href}
+                          onClick={() => setShowMobileNav(false)}
+                          className={`block w-full text-center ${action.className}`}
+                        >
+                          {action.label}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Mobile AI Features */}
+                {(isTourist || isHost) && (
+                  <div className="mb-6">
+                    <h3 className="text-sm font-medium text-gray-500 mb-3">AI Features</h3>
+                    <div className="space-y-2">
+                      {isTourist && (
+                        <Link
+                          href="/ai-features/cultural-concierge"
+                          onClick={() => setShowMobileNav(false)}
+                          className="flex items-center space-x-2 w-full px-3 py-2 text-sm text-purple-700 bg-purple-50 rounded-lg"
+                        >
+                          <ChatBubbleLeftRightIcon className="w-4 h-4" />
+                          <span>Cultural Concierge</span>
+                        </Link>
+                      )}
+                      
+                      {isHost && (
+                        <Link
+                          href="/ai-features/voice-listing"
+                          onClick={() => setShowMobileNav(false)}
+                          className="flex items-center space-x-2 w-full px-3 py-2 text-sm text-green-700 bg-green-50 rounded-lg"
+                        >
+                          <MicrophoneIcon className="w-4 h-4" />
+                          <span>Voice Listing Magic</span>
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
         
         {/* Main Content */}
         <main className="min-h-screen">

@@ -20,7 +20,7 @@ import {
   MicrophoneIcon,
   VideoCameraIcon
 } from '@heroicons/react/24/outline';
-
+import LanguageSelector from '@/components/ui/LanguageSelector';
 const Navbar = () => {
   const { user, logout, isAuthenticated, isHost, isTourist, isAdmin } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
@@ -129,6 +129,8 @@ const Navbar = () => {
 
           {/* User Menu */}
           <div className="hidden lg:flex items-center space-x-4">
+             {/* Language Selector */}
+  <LanguageSelector showLabel={false} />
             {isAuthenticated ? (
               <div className="relative group">
                 <button className="flex items-center space-x-3 bg-green-50 hover:bg-green-100 rounded-xl px-4 py-2 transition-colors duration-200">

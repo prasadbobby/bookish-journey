@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { TranslationProvider } from '@/contexts/TranslationContext';
 import { Toaster } from 'react-hot-toast';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
@@ -11,6 +12,7 @@ import dynamic from 'next/dynamic';
 const OfflineDetector = dynamic(() => import('@/components/layout/OfflineDetector'), {
   ssr: false
 });
+
 export default function ClientLayout({ children }) {
   const pathname = usePathname();
   
@@ -30,50 +32,52 @@ export default function ClientLayout({ children }) {
     (pathname.startsWith('/listings') && !pathname.includes('/host/') && !pathname.includes('/admin/'));
 
   return (
-    <AuthProvider>
-      <OfflineDetector />
-      {isPublicRoute ? (
-        // Regular layout for public pages only
-        <div className="min-h-screen flex flex-col village-bg">
-          <Navbar />
-          <main className="flex-1">
+    <TranslationProvider>
+      <AuthProvider>
+        <OfflineDetector />
+        {isPublicRoute ? (
+          // Regular layout for public pages only
+          <div className="min-h-screen flex flex-col village-bg">
+            <Navbar />
+            <main className="flex-1">
+              {children}
+            </main>
+            <Footer />
+          </div>
+        ) : (
+          // Sidebar layout for all authenticated areas (dashboard, AI features, etc.)
+          <AppLayoutWithSideNav>
             {children}
-          </main>
-          <Footer />
-        </div>
-      ) : (
-        // Sidebar layout for all authenticated areas (dashboard, AI features, etc.)
-        <AppLayoutWithSideNav>
-          {children}
-        </AppLayoutWithSideNav>
-      )}
-      
-      <Toaster 
-        position="top-right"
-        toastOptions={{
-          duration: 4000,
-          style: {
-            background: '#363636',
-            color: '#fff',
-            borderRadius: '12px',
-            padding: '16px',
-          },
-          success: {
-            duration: 3000,
-            iconTheme: {
-              primary: '#22c55e',
-              secondary: '#fff',
+          </AppLayoutWithSideNav>
+        )}
+        
+        <Toaster 
+          position="top-right"
+          toastOptions={{
+            duration: 4000,
+            style: {
+              background: '#363636',
+              color: '#fff',
+              borderRadius: '12px',
+              padding: '16px',
             },
-          },
-          error: {
-            duration: 5000,
-            iconTheme: {
-              primary: '#ef4444',
-              secondary: '#fff',
+            success: {
+              duration: 3000,
+              iconTheme: {
+                primary: '#22c55e',
+                secondary: '#fff',
+              },
             },
-          },
-        }}
-      />
-    </AuthProvider>
+            error: {
+              duration: 5000,
+              iconTheme: {
+                primary: '#ef4444',
+                secondary: '#fff',
+              },
+            },
+          }}
+        />
+      </AuthProvider>
+    </TranslationProvider>
   );
 }
