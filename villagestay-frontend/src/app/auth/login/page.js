@@ -264,7 +264,7 @@ const LoginPage = () => {
 
           <div className="relative z-10 flex min-h-screen">
             {/* Left Side - Branding & Testimonials */}
-            <div className="hidden lg:flex lg:w-1/2 flex-col justify-center px-12 xl:px-16">
+            <div className="hidden lg:flex lg:w-1/2 flex-col justify-center px-12 xl:pl-[12rem] xl:pr-16">
               <motion.div
                 initial={{ opacity: 0, x: -50 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -273,19 +273,7 @@ const LoginPage = () => {
               >
                 {/* Logo & Brand */}
                 <div className="mb-12">
-                  <div className="flex items-center space-x-4 mb-6">
-                    <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center shadow-xl">
-                      <span className="text-white font-bold text-2xl">V</span>
-                    </div>
-                    <div>
-                      <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-700 to-teal-700 bg-clip-text text-transparent">
-                        VillageStay
-                      </h1>
-                      <p className="text-gray-600 font-medium">
-                        Authentic Rural Experiences
-                      </p>
-                    </div>
-                  </div>
+                  
 
                   <h2 className="text-4xl font-bold text-gray-900 leading-tight mb-6">
                     Welcome back to your

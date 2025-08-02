@@ -233,22 +233,26 @@ def get_listing(listing_id):
 @listings_bp.route('/', methods=['POST'])
 @jwt_required()
 def create_listing():
+    """Original create listing route - should NOT be used for experiences"""
     try:
+        print(f"🚨 WARNING: Old create route called - this should not happen for experiences!")
         user_id = get_jwt_identity()
         data = request.get_json()
         
-        # Verify user is a host
+        print(f"🚨 Old route data: {data}")
+        
+        # This route expects homestay data only
         user = mongo.db.users.find_one({"_id": ObjectId(user_id)})
         if not user or user['user_type'] != 'host':
             return jsonify({"error": "Only hosts can create listings"}), 403
         
-        # Required fields validation
+        # Required fields validation for homestay ONLY
         required_fields = ['title', 'description', 'location', 'price_per_night', 'property_type']
         for field in required_fields:
             if not data.get(field):
                 return jsonify({"error": f"{field} is required"}), 400
         
-        # Create listing document
+        # Create homestay listing document
         listing_doc = {
             "host_id": ObjectId(user_id),
             "title": data['title'],
@@ -262,11 +266,10 @@ def create_listing():
             "max_guests": int(data.get('max_guests', 4)),
             "house_rules": data.get('house_rules', []),
             "sustainability_features": data.get('sustainability_features', []),
-            "experiences": data.get('experiences', []),
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow(),
             "is_active": True,
-            "is_approved": False,  # Needs admin approval
+            "is_approved": False,
             "rating": 0.0,
             "review_count": 0,
             "has_village_story": False,
@@ -285,15 +288,15 @@ def create_listing():
         print(f"Error creating listing: {e}")
         return jsonify({"error": str(e)}), 500
 
-
-
-# Add new route for geocoding validation
-@listings_bp.route('/geocode', methods=['POST'])
+@listings_bp.route('/geocode', methods=['POST', 'OPTIONS'])
 @jwt_required()
 def geocode_location():
     """
     Endpoint to validate and geocode a location before creating listing
     """
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200
+        
     try:
         data = request.get_json()
         location = data.get('location', '').strip()
@@ -301,8 +304,12 @@ def geocode_location():
         if not location:
             return jsonify({"error": "Location is required"}), 400
         
+        print(f"🌍 Geocoding location: {location}")
+        
         # Get coordinates from location
         geocoding_result = get_coordinates_from_location(location)
+        
+        print(f"✅ Geocoding successful: {geocoding_result}")
         
         return jsonify({
             "success": True,
@@ -316,10 +323,12 @@ def geocode_location():
         }), 200
         
     except Exception as e:
+        print(f"❌ Geocoding error: {str(e)}")
         return jsonify({
             "success": False,
             "error": str(e)
         }), 400
+
 
 @listings_bp.route('/<listing_id>', methods=['PUT'])
 @jwt_required()
@@ -1164,19 +1173,26 @@ def create_fallback_visual_analysis():
 
 
 # Add new route for location suggestions
-@listings_bp.route('/location-suggestions', methods=['GET'])
+@listings_bp.route('/location-suggestions', methods=['GET', 'OPTIONS'])
 def get_location_suggestions_route():
     """
     Get location suggestions for autocomplete
     """
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200
+        
     try:
         query = request.args.get('query', '').strip()
-        limit = int(request.args.get('limit', 5))
+        limit = int(request.args.get('limit', 6))
         
         if not query or len(query) < 2:
             return jsonify({"suggestions": []}), 200
         
+        print(f"🔍 Getting location suggestions for: {query}")
+        
         suggestions = get_location_suggestions(query, limit)
+        
+        print(f"✅ Found {len(suggestions)} suggestions")
         
         return jsonify({
             "suggestions": suggestions,
@@ -1184,18 +1200,22 @@ def get_location_suggestions_route():
         }), 200
         
     except Exception as e:
-        print(f"Location suggestions error: {e}")
+        print(f"❌ Location suggestions error: {e}")
         return jsonify({
             "suggestions": [],
             "error": str(e)
         }), 400
 
+
 # Add route for place details
-@listings_bp.route('/place-details', methods=['POST'])
+@listings_bp.route('/place-details', methods=['POST', 'OPTIONS'])
 def get_place_details_route():
     """
     Get detailed place information from place_id
     """
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200
+        
     try:
         data = request.get_json()
         place_id = data.get('place_id')
@@ -1203,7 +1223,11 @@ def get_place_details_route():
         if not place_id:
             return jsonify({"error": "Place ID is required"}), 400
         
+        print(f"📍 Getting place details for: {place_id}")
+        
         place_details = get_place_details(place_id)
+        
+        print(f"✅ Place details retrieved successfully")
         
         return jsonify({
             "success": True,
@@ -1211,15 +1235,19 @@ def get_place_details_route():
         }), 200
         
     except Exception as e:
+        print(f"❌ Place details error: {str(e)}")
         return jsonify({
             "success": False,
             "error": str(e)
-        }), 400
-    
+        }), 400 
 
-@listings_bp.route('/host/<host_id>/stats', methods=['GET'])
+@listings_bp.route('/host/<host_id>/stats', methods=['GET', 'OPTIONS'])
 @jwt_required()
 def get_host_listing_stats(host_id):
+    """Get comprehensive stats for host listings"""
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200
+        
     try:
         user_id = get_jwt_identity()
         
@@ -1227,27 +1255,587 @@ def get_host_listing_stats(host_id):
         if str(user_id) != host_id:
             return jsonify({"error": "Unauthorized"}), 403
         
-        # Get all listings for this host (including inactive)
-        all_listings = list(mongo.db.listings.find({"host_id": ObjectId(host_id)}))
+        # Get homestays
+        homestays = list(mongo.db.listings.find({"host_id": ObjectId(host_id)}))
         
-        # Calculate stats
-        total_listings = len(all_listings)
-        active_listings = len([l for l in all_listings if l.get('is_approved', False) and l.get('is_active', True)])
-        pending_listings = len([l for l in all_listings if not l.get('is_approved', False) and l.get('is_active', True)])
-        inactive_listings = len([l for l in all_listings if not l.get('is_active', True)])
+        # Get experiences
+        experiences = list(mongo.db.experiences.find({"host_id": ObjectId(host_id)}))
         
-        # Calculate average rating
-        total_rating = sum(l.get('rating', 0) for l in all_listings if l.get('rating', 0) > 0)
-        rated_listings = len([l for l in all_listings if l.get('rating', 0) > 0])
-        avg_rating = round(total_rating / rated_listings, 1) if rated_listings > 0 else 0.0
+        # Calculate homestay stats
+        homestay_stats = {
+            "total": len(homestays),
+            "active": len([h for h in homestays if h.get('is_approved', False) and h.get('is_active', True)]),
+            "pending": len([h for h in homestays if not h.get('is_approved', False) and h.get('is_active', True)]),
+            "inactive": len([h for h in homestays if not h.get('is_active', True)]),
+            "avg_rating": 0
+        }
+        
+        if homestays:
+            total_rating = sum(h.get('rating', 0) for h in homestays if h.get('rating', 0) > 0)
+            rated_count = len([h for h in homestays if h.get('rating', 0) > 0])
+            homestay_stats["avg_rating"] = round(total_rating / rated_count, 1) if rated_count > 0 else 0.0
+        
+        # Calculate experience stats
+        experience_stats = {
+            "total": len(experiences),
+            "active": len([e for e in experiences if e.get('is_approved', False) and e.get('is_active', True)]),
+            "pending": len([e for e in experiences if not e.get('is_approved', False) and e.get('is_active', True)]),
+            "inactive": len([e for e in experiences if not e.get('is_active', True)]),
+            "avg_rating": 0
+        }
+        
+        if experiences:
+            total_rating = sum(e.get('rating', 0) for e in experiences if e.get('rating', 0) > 0)
+            rated_count = len([e for e in experiences if e.get('rating', 0) > 0])
+            experience_stats["avg_rating"] = round(total_rating / rated_count, 1) if rated_count > 0 else 0.0
+        
+        # Overall stats
+        overall_stats = {
+            "total_listings": homestay_stats["total"] + experience_stats["total"],
+            "active_listings": homestay_stats["active"] + experience_stats["active"],
+            "pending_listings": homestay_stats["pending"] + experience_stats["pending"],
+            "inactive_listings": homestay_stats["inactive"] + experience_stats["inactive"],
+            "avg_rating": 0
+        }
+        
+        # Calculate overall average rating
+        all_listings = homestays + experiences
+        if all_listings:
+            total_rating = sum(item.get('rating', 0) for item in all_listings if item.get('rating', 0) > 0)
+            rated_count = len([item for item in all_listings if item.get('rating', 0) > 0])
+            overall_stats["avg_rating"] = round(total_rating / rated_count, 1) if rated_count > 0 else 0.0
         
         return jsonify({
-            "total_listings": total_listings,
-            "active_listings": active_listings,
-            "pending_listings": pending_listings,
-            "inactive_listings": inactive_listings,
-            "avg_rating": avg_rating
+            "overall": overall_stats,
+            "homestays": homestay_stats,
+            "experiences": experience_stats
         }), 200
         
     except Exception as e:
+        print(f"Error getting stats: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@listings_bp.route('/create', methods=['POST', 'OPTIONS'])
+@jwt_required()
+def create_listing_or_experience():
+    """Create either a homestay listing or experience based on listing_category"""
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200
+    
+    try:
+        user_id = get_jwt_identity()
+        data = request.get_json()
+        
+        print(f"🔥 DEBUG: Route /create called")
+        print(f"🔥 DEBUG: Received data keys: {list(data.keys()) if data else 'No data'}")
+        print(f"🔥 DEBUG: listing_category: {data.get('listing_category') if data else 'No category'}")
+        
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        listing_category = data.get('listing_category')
+        
+        # Verify listing category
+        if not listing_category:
+            return jsonify({"error": "listing_category is required"}), 400
+        
+        if listing_category not in ['homestay', 'experience']:
+            return jsonify({"error": "listing_category must be 'homestay' or 'experience'"}), 400
+        
+        # Verify user is a host
+        user = mongo.db.users.find_one({"_id": ObjectId(user_id)})
+        if not user or user['user_type'] != 'host':
+            return jsonify({"error": "Only hosts can create listings"}), 403
+        
+        print(f"🔥 DEBUG: About to call create_{listing_category}_listing")
+        
+        # Route to appropriate creation function
+        if listing_category == 'homestay':
+            return create_homestay_listing(user_id, data)
+        else:  # experience
+            return create_experience_listing(user_id, data)
+            
+    except Exception as e:
+        print(f"❌ Error in main create route: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
+
+
+def create_experience_listing(user_id, data):
+    """Create an experience listing"""
+    try:
+        # Required fields validation for experience - FIX: Use correct field names
+        required_fields = ['title', 'description', 'location', 'price_per_person', 'category', 'duration']
+        
+        missing_fields = []
+        for field in required_fields:
+            if not data.get(field):
+                missing_fields.append(field)
+        
+        if missing_fields:
+            return jsonify({
+                "error": f"Missing required fields for experience: {', '.join(missing_fields)}"
+            }), 400
+        
+        print(f"🎭 Creating experience listing: {data['title']}")
+        print(f"💰 Price per person: {data['price_per_person']}")
+        print(f"🎯 Category: {data['category']}")
+        print(f"⏱️ Duration: {data['duration']}")
+        
+        # Validate numeric fields
+        try:
+            price_per_person = float(data['price_per_person'])
+            duration = float(data['duration'])
+            max_participants = int(data.get('max_participants', 8))
+            
+            if price_per_person < 100:
+                return jsonify({"error": "Price per person must be at least ₹100"}), 400
+            if duration <= 0:
+                return jsonify({"error": "Duration must be greater than 0"}), 400
+            if max_participants <= 0:
+                return jsonify({"error": "Max participants must be greater than 0"}), 400
+                
+        except (ValueError, TypeError) as e:
+            return jsonify({"error": f"Invalid numeric values: {str(e)}"}), 400
+        
+        # Create experience listing document
+        experience_doc = {
+            "host_id": ObjectId(user_id),
+            "listing_category": "experience",
+            "title": data['title'],
+            "description": data['description'],
+            "location": data['location'],
+            "price_per_person": price_per_person,
+            "category": data['category'],
+            "duration": duration,
+            "max_participants": max_participants,
+            "images": data.get('images', []),
+            "coordinates": data.get('coordinates', {}),
+            "inclusions": data.get('inclusions', []),
+            "requirements": data.get('requirements', []),
+            "difficulty_level": data.get('difficulty_level', 'easy'),
+            "age_restrictions": data.get('age_restrictions', {'min_age': 0, 'max_age': 100}),
+            "languages": data.get('languages', ['English']),
+            "meeting_point": data.get('meeting_point', ''),
+            "what_to_bring": data.get('what_to_bring', []),
+            "cancellation_policy": data.get('cancellation_policy', 'flexible'),
+            "availability_schedule": data.get('availability_schedule', {}),
+            "group_size_preference": data.get('group_size_preference', 'small'),
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+            "is_active": True,
+            "is_approved": False,
+            "rating": 0.0,
+            "review_count": 0
+        }
+        
+        # Insert experience into experiences collection
+        result = mongo.db.experiences.insert_one(experience_doc)
+        
+        print(f"✅ Experience created with ID: {result.inserted_id}")
+        
+        return jsonify({
+            "message": "Experience listing created successfully",
+            "listing_id": str(result.inserted_id),
+            "listing_category": "experience",
+            "coordinates": data.get('coordinates', {})
+        }), 201
+        
+    except Exception as e:
+        print(f"❌ Error creating experience: {e}")
+        import traceback
+        traceback.print_exc()
+        raise e
+
+def create_homestay_listing(user_id, data):
+    """Create a homestay listing"""
+    try:
+        # Required fields validation for homestay
+        required_fields = ['title', 'description', 'location', 'price_per_night', 'property_type']
+        
+        missing_fields = []
+        for field in required_fields:
+            if not data.get(field):
+                missing_fields.append(field)
+        
+        if missing_fields:
+            return jsonify({
+                "error": f"Missing required fields for homestay: {', '.join(missing_fields)}"
+            }), 400
+        
+        print(f"🏠 Creating homestay listing: {data['title']}")
+        print(f"💰 Price per night: {data['price_per_night']}")
+        print(f"🏡 Property type: {data['property_type']}")
+        
+        # Validate numeric fields
+        try:
+            price_per_night = float(data['price_per_night'])
+            max_guests = int(data.get('max_guests', 4))
+            
+            if price_per_night < 500:
+                return jsonify({"error": "Price per night must be at least ₹500"}), 400
+            if max_guests <= 0:
+                return jsonify({"error": "Max guests must be greater than 0"}), 400
+                
+        except (ValueError, TypeError) as e:
+            return jsonify({"error": f"Invalid numeric values: {str(e)}"}), 400
+        
+        # Create homestay listing document
+        listing_doc = {
+            "host_id": ObjectId(user_id),
+            "listing_category": "homestay",
+            "title": data['title'],
+            "description": data['description'],
+            "location": data['location'],
+            "price_per_night": price_per_night,
+            "property_type": data['property_type'],
+            "amenities": data.get('amenities', []),
+            "images": data.get('images', []),
+            "coordinates": data.get('coordinates', {}),
+            "max_guests": max_guests,
+            "house_rules": data.get('house_rules', []),
+            "sustainability_features": data.get('sustainability_features', []),
+            "check_in_time": data.get('check_in_time', '14:00'),
+            "check_out_time": data.get('check_out_time', '11:00'),
+            "cancellation_policy": data.get('cancellation_policy', 'flexible'),
+            "instant_book": data.get('instant_book', False),
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+            "is_active": True,
+            "is_approved": False,
+            "rating": 0.0,
+            "review_count": 0,
+            "has_village_story": False,
+            "availability_calendar": {}
+        }
+        
+        # Insert listing
+        result = mongo.db.listings.insert_one(listing_doc)
+        
+        print(f"✅ Homestay created with ID: {result.inserted_id}")
+        
+        return jsonify({
+            "message": "Homestay listing created successfully",
+            "listing_id": str(result.inserted_id),
+            "listing_category": "homestay",
+            "coordinates": data.get('coordinates', {})
+        }), 201
+        
+    except Exception as e:
+        print(f"❌ Error creating homestay: {e}")
+        import traceback
+        traceback.print_exc()
+        raise e
+
+
+@listings_bp.route('/host/<host_id>/all', methods=['GET', 'OPTIONS'])
+@jwt_required()
+def get_host_all_listings(host_id):
+    """Get all listings (homestays + experiences) for a host"""
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200
+        
+    try:
+        user_id = get_jwt_identity()
+        
+        # Verify ownership
+        if str(user_id) != host_id:
+            user = mongo.db.users.find_one({"_id": ObjectId(user_id)})
+            if not user or user['user_type'] != 'admin':
+                return jsonify({"error": "Unauthorized"}), 403
+        
+        # Get query parameters
+        listing_type = request.args.get('type', 'all')  # 'all', 'homestays', 'experiences'
+        page = int(request.args.get('page', 1))
+        limit = int(request.args.get('limit', 12))
+        
+        # Get homestay listings
+        homestays = []
+        if listing_type in ['all', 'homestays']:
+            homestays = list(mongo.db.listings.find({"host_id": ObjectId(host_id)})
+                            .sort("created_at", -1))
+        
+        # Get experience listings  
+        experiences = []
+        if listing_type in ['all', 'experiences']:
+            experiences = list(mongo.db.experiences.find({"host_id": ObjectId(host_id)})
+                              .sort("created_at", -1))
+        
+        # Format homestays
+        formatted_homestays = []
+        for listing in homestays:
+            videos = get_listing_videos(str(listing['_id']))
+            
+            formatted_listing = {
+                "id": str(listing['_id']),
+                "listing_category": "homestay",
+                "type": "homestay",
+                "title": listing['title'],
+                "description": listing['description'],
+                "location": listing['location'],
+                "price_per_night": listing['price_per_night'],
+                "price_display": listing['price_per_night'],
+                "price_unit": "night",
+                "property_type": listing['property_type'],
+                "amenities": listing.get('amenities', []),
+                "images": listing.get('images', []),
+                "coordinates": listing.get('coordinates', {}),
+                "max_guests": listing.get('max_guests', 4),
+                "capacity": listing.get('max_guests', 4),
+                "is_active": listing.get('is_active', True),
+                "is_approved": listing.get('is_approved', False),
+                "has_village_story": listing.get('has_village_story', False),
+                "village_story_videos": videos,
+                "rating": listing.get('rating', 0),
+                "review_count": listing.get('review_count', 0),
+                "created_at": listing['created_at'].isoformat() if 'created_at' in listing else None
+            }
+            formatted_homestays.append(formatted_listing)
+        
+        # Format experiences
+        formatted_experiences = []
+        for experience in experiences:
+            formatted_experience = {
+                "id": str(experience['_id']),
+                "listing_category": "experience",
+                "type": "experience",
+                "title": experience['title'],
+                "description": experience['description'],
+                "location": experience['location'],
+                "price_per_person": experience['price_per_person'],
+                "price_display": experience['price_per_person'],
+                "price_unit": "person",
+                "category": experience['category'],
+                "duration": experience['duration'],
+                "max_participants": experience.get('max_participants', 8),
+                "capacity": experience.get('max_participants', 8),
+                "images": experience.get('images', []),
+                "coordinates": experience.get('coordinates', {}),
+                "difficulty_level": experience.get('difficulty_level', 'easy'),
+                "inclusions": experience.get('inclusions', []),
+                "is_active": experience.get('is_active', True),
+                "is_approved": experience.get('is_approved', False),
+                "rating": experience.get('rating', 0),
+                "review_count": experience.get('review_count', 0),
+                "created_at": experience['created_at'].isoformat() if 'created_at' in experience else None
+            }
+            formatted_experiences.append(formatted_experience)
+        
+        # Combine and filter based on type
+        all_listings = []
+        if listing_type == 'homestays':
+            all_listings = formatted_homestays
+        elif listing_type == 'experiences':
+            all_listings = formatted_experiences
+        else:  # 'all'
+            all_listings = formatted_homestays + formatted_experiences
+            # Sort by created_at
+            all_listings.sort(key=lambda x: x['created_at'] or '', reverse=True)
+        
+        # Apply pagination
+        total_count = len(all_listings)
+        start_idx = (page - 1) * limit
+        end_idx = start_idx + limit
+        paginated_listings = all_listings[start_idx:end_idx]
+        
+        return jsonify({
+            "listings": paginated_listings,
+            "homestays": formatted_homestays,
+            "experiences": formatted_experiences,
+            "stats": {
+                "total_homestays": len(formatted_homestays),
+                "total_experiences": len(formatted_experiences),
+                "total_listings": len(all_listings),
+                "active_homestays": len([h for h in formatted_homestays if h['is_approved'] and h['is_active']]),
+                "active_experiences": len([e for e in formatted_experiences if e['is_approved'] and e['is_active']]),
+                "pending_homestays": len([h for h in formatted_homestays if not h['is_approved'] and h['is_active']]),
+                "pending_experiences": len([e for e in formatted_experiences if not e['is_approved'] and e['is_active']])
+            },
+            "pagination": {
+                "current_page": page,
+                "total_pages": (total_count + limit - 1) // limit,
+                "total_count": total_count,
+                "has_next": end_idx < total_count,
+                "has_prev": page > 1
+            }
+        }), 200
+        
+    except Exception as e:
+        print(f"Error getting host listings: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+@listings_bp.route('/experiences', methods=['GET', 'OPTIONS'])
+def get_all_experiences():
+    """Get all approved experiences with filtering"""
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200
+        
+    try:
+        # Get query parameters
+        page = int(request.args.get('page', 1))
+        limit = int(request.args.get('limit', 12))
+        location = request.args.get('location', '')
+        category = request.args.get('category', '')
+        min_price = request.args.get('min_price', type=int)
+        max_price = request.args.get('max_price', type=int)
+        difficulty = request.args.get('difficulty', '')
+        
+        # Build query
+        query = {"is_active": True, "is_approved": True}
+        
+        if location:
+            query["location"] = {"$regex": location, "$options": "i"}
+        
+        if category:
+            query["category"] = category
+            
+        if difficulty:
+            query["difficulty_level"] = difficulty
+        
+        if min_price is not None or max_price is not None:
+            price_query = {}
+            if min_price is not None:
+                price_query["$gte"] = min_price
+            if max_price is not None:
+                price_query["$lte"] = max_price
+            query["price_per_person"] = price_query
+        
+        # Get total count
+        total = mongo.db.experiences.count_documents(query)
+        
+        # Get experiences with pagination
+        skip = (page - 1) * limit
+        experiences = list(mongo.db.experiences.find(query)
+                          .sort("created_at", -1)
+                          .skip(skip)
+                          .limit(limit))
+        
+        # Format experiences
+        formatted_experiences = []
+        for experience in experiences:
+            # Get host info
+            host = mongo.db.users.find_one({"_id": experience['host_id']})
+            
+            formatted_experience = {
+                "id": str(experience['_id']),
+                "listing_category": "experience",
+                "title": experience['title'],
+                "description": experience['description'],
+                "location": experience['location'],
+                "price_per_person": experience['price_per_person'],
+                "category": experience['category'],
+                "duration": experience['duration'],
+                "max_participants": experience.get('max_participants', 8),
+                "difficulty_level": experience.get('difficulty_level', 'easy'),
+                "images": experience.get('images', []),
+                "coordinates": experience.get('coordinates', {}),
+                "inclusions": experience.get('inclusions', []),
+                "rating": experience.get('rating', 0),
+                "review_count": experience.get('review_count', 0),
+                "created_at": experience['created_at'].isoformat() if 'created_at' in experience else None,
+                "host": {
+                    "id": str(host['_id']),
+                    "full_name": host['full_name'],
+                    "profile_image": host.get('profile_image')
+                } if host else None
+            }
+            formatted_experiences.append(formatted_experience)
+        
+        return jsonify({
+            "experiences": formatted_experiences,
+            "pagination": {
+                "current_page": page,
+                "total_pages": (total + limit - 1) // limit,
+                "total_experiences": total,
+                "has_next": page * limit < total,
+                "has_prev": page > 1
+            }
+        }), 200
+        
+    except Exception as e:
+        print(f"Error getting experiences: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@listings_bp.route('/experiences/<experience_id>', methods=['GET', 'OPTIONS'])
+def get_experience(experience_id):
+    """Get single experience details"""
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200
+        
+    try:
+        if not ObjectId.is_valid(experience_id):
+            return jsonify({"error": "Invalid experience ID"}), 400
+        
+        experience = mongo.db.experiences.find_one({"_id": ObjectId(experience_id)})
+        if not experience:
+            return jsonify({"error": "Experience not found"}), 404
+        
+        # Get host information
+        host = mongo.db.users.find_one({"_id": experience['host_id']})
+        
+        # Get reviews
+        reviews = list(mongo.db.reviews.find({
+            "listing_id": ObjectId(experience_id),
+            "listing_type": "experience",
+            "status": "active"
+        }).sort("created_at", -1).limit(10))
+        
+        formatted_reviews = []
+        for review in reviews:
+            reviewer = mongo.db.users.find_one({"_id": review['reviewer_id']})
+            formatted_review = {
+                "id": str(review['_id']),
+                "rating": review['rating'],
+                "comment": review['comment'],
+                "created_at": review['created_at'].isoformat() if 'created_at' in review else None,
+                "reviewer": {
+                    "full_name": reviewer['full_name'] if reviewer else "Anonymous",
+                    "profile_image": reviewer.get('profile_image') if reviewer else None
+                }
+            }
+            formatted_reviews.append(formatted_review)
+        
+        # Format experience data
+        experience_data = {
+            "id": str(experience['_id']),
+            "listing_category": "experience",
+            "title": experience['title'],
+            "description": experience['description'],
+            "location": experience['location'],
+            "price_per_person": experience['price_per_person'],
+            "category": experience['category'],
+            "duration": experience['duration'],
+            "max_participants": experience.get('max_participants', 8),
+            "difficulty_level": experience.get('difficulty_level', 'easy'),
+            "images": experience.get('images', []),
+            "coordinates": experience.get('coordinates', {}),
+            "inclusions": experience.get('inclusions', []),
+            "requirements": experience.get('requirements', []),
+            "age_restrictions": experience.get('age_restrictions', {}),
+            "languages": experience.get('languages', []),
+            "meeting_point": experience.get('meeting_point', ''),
+            "what_to_bring": experience.get('what_to_bring', []),
+            "cancellation_policy": experience.get('cancellation_policy', 'flexible'),
+            "rating": experience.get('rating', 0),
+            "review_count": experience.get('review_count', 0),
+            "created_at": experience['created_at'].isoformat() if 'created_at' in experience else None,
+            "is_active": experience.get('is_active', True),
+            "is_approved": experience.get('is_approved', False),
+            "reviews": formatted_reviews,
+            "host": {
+                "id": str(host['_id']),
+                "full_name": host['full_name'],
+                "created_at": host['created_at'].isoformat() if 'created_at' in host else None,
+                "profile_image": host.get('profile_image')
+            } if host else None
+        }
+        
+        return jsonify(experience_data), 200
+        
+    except Exception as e:
+        print(f"Error getting experience: {e}")
         return jsonify({"error": str(e)}), 500

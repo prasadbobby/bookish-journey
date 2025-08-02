@@ -1,4 +1,3 @@
-// villagestay-frontend/src/app/listings/page.js
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -50,6 +49,7 @@ import {
   CubeTransparentIcon,
   RocketLaunchIcon,
   LightBulbIcon,
+  AcademicCapIcon,
 } from "@heroicons/react/24/outline";
 import {
   HeartIcon as HeartSolidIcon,
@@ -70,7 +70,7 @@ const MapView = dynamic(() => import("@/components/map/MapView"), {
   ),
 });
 
-// Enhanced Advanced Search Component - FIXED UI WITH PROPER COLORS
+// Enhanced Advanced Search Component
 const AdvancedSearch = ({ onResults, loading, setLoading }) => {
   const [searchType, setSearchType] = useState("semantic");
   const [searchQuery, setSearchQuery] = useState("");
@@ -332,7 +332,7 @@ const AdvancedSearch = ({ onResults, loading, setLoading }) => {
 
   return (
     <div className="w-full max-w-4xl mx-auto">
-      {/* Search Type Selector - FIXED COLORS */}
+      {/* Search Type Selector */}
       <div className="flex justify-center mb-8">
         <div className="bg-gray-800 rounded-2xl p-2 shadow-lg border border-gray-600 inline-flex">
           {[
@@ -379,7 +379,7 @@ const AdvancedSearch = ({ onResults, loading, setLoading }) => {
         </div>
       </div>
 
-      {/* Search Interface - FIXED COLORS */}
+      {/* Search Interface */}
       <AnimatePresence mode="wait">
         {searchType === "semantic" && (
           <motion.div
@@ -694,7 +694,7 @@ const AdvancedSearch = ({ onResults, loading, setLoading }) => {
   );
 };
 
-// Enhanced Property Card Component (keeping your existing one)
+// Enhanced Property Card Component for AI search results
 const EnhancedPropertyCard = ({ listing, index, searchType }) => {
   const [imageError, setImageError] = useState(false);
   const [imageSrc, setImageSrc] = useState(
@@ -719,815 +719,902 @@ const EnhancedPropertyCard = ({ listing, index, searchType }) => {
     return badges[searchType] || "✨ Special";
   };
 
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 30 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: index * 0.1 }}
-      className="group relative"
-    >
-      <div className="relative bg-white rounded-3xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2">
-        {/* Image Container */}
-        <div className="relative h-64 overflow-hidden bg-gradient-to-br from-green-100 to-emerald-200">
-          {imageError || !imageSrc ? (
-            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-green-400 to-emerald-500">
-              <div className="text-center text-white">
-                <div className="text-4xl mb-2">🏘️</div>
-                <div className="font-semibold text-lg">{listing.title}</div>
-                <div className="text-sm opacity-80">
-                  {listing.property_type?.replace("_", " ")}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <motion.img
-              src={imageSrc}
-              alt={listing.title}
-              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-              onError={handleImageError}
-              loading="lazy"
-            />
-          )}
-
-          {/* Enhanced badges for visual upload search */}
-          <div className="absolute top-4 left-4 flex flex-col space-y-2 z-10">
-            {searchType && (
-              <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-full px-3 py-1 text-xs font-bold shadow-lg">
-                {getSearchBadge(searchType, listing)}
-              </div>
-            )}
-
-            {listing.visual_similarity_score && (
-              <div className="bg-gradient-to-r from-purple-500 to-violet-500 text-white rounded-full px-3 py-1 text-xs font-bold shadow-lg">
-                🎯 {Math.round(listing.visual_similarity_score)}% Visual Match
-              </div>
-            )}
-
-            {listing.semantic_score && (
-              <div className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-full px-3 py-1 text-xs font-bold shadow-lg">
-                🎯 {Math.round(listing.semantic_score)}% Match
-              </div>
-            )}
-
-            {listing.emotion_score && (
-              <div className="bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-full px-3 py-1 text-xs font-bold shadow-lg">
-                💝 {Math.round(listing.emotion_score)}% Emotional Match
-              </div>
-            )}
-
-            {listing.visual_score && (
-              <div className="bg-gradient-to-r from-purple-500 to-violet-500 text-white rounded-full px-3 py-1 text-xs font-bold shadow-lg">
-                📸 {Math.round(listing.visual_score)}% Visual Match
-              </div>
-            )}
-
-            {listing.sustainability_features?.length > 0 && (
-              <div className="bg-gradient-to-r from-green-400 to-teal-500 text-white rounded-full px-3 py-1 text-xs font-bold shadow-lg">
-                🌱 Eco-Friendly
-              </div>
-            )}
-          </div>
-
-          {/* Rating Badge */}
-          <div className="absolute bottom-4 left-4 flex items-center space-x-1 bg-white/90 backdrop-blur-md rounded-xl px-3 py-2 shadow-lg">
-            <div className="flex">
-              {[...Array(5)].map((_, i) => (
-                <StarSolidIcon
-                  key={i}
-                  className={`w-4 h-4 ${
-                    i < Math.floor(listing.rating || 4.8)
-                      ? "text-yellow-400"
-                      : "text-gray-200"
-                  }`}
-                />
-              ))}
-            </div>
-            <span className="text-sm font-bold text-gray-900">
-              {listing.rating || "4.8"}
-            </span>
-            <span className="text-xs text-gray-500">(24)</span>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="p-6">
-          <div className="flex items-start justify-between mb-3">
-            <h3 className="text-xl font-bold text-gray-900 line-clamp-2 flex-1 mr-2">
-              {listing.title}
-            </h3>
-            <div className="flex-shrink-0 text-right">
-              <div className="text-2xl font-bold text-gray-900">
-                {formatCurrency(listing.price_per_night)}
-              </div>
-              <div className="text-sm text-gray-500">/night</div>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-2 text-gray-600 mb-4">
-            <MapPinIcon className="w-4 h-4 text-green-500" />
-            <span className="text-sm">{listing.location}</span>
-          </div>
-
-          {/* Amenities Preview */}
-          {listing.amenities?.length > 0 && (
-            <div className="mb-4">
-              <div className="flex flex-wrap gap-2">
-                {listing.amenities.slice(0, 3).map((amenity, i) => (
-                  <span
-                    key={i}
-                    className="inline-flex items-center px-3 py-1 bg-gradient-to-r from-gray-50 to-gray-100 text-gray-700 rounded-full text-xs font-medium border border-gray-200"
-                  >
-                    <span className="mr-1">
-                      {amenity.toLowerCase().includes("wifi") && "📶"}
-                      {amenity.toLowerCase().includes("meal") && "🍽️"}
-                      {amenity.toLowerCase().includes("guide") && "👨‍🏫"}
-                      {amenity.toLowerCase().includes("cooking") && "👨‍🍳"}
-                      {amenity.toLowerCase().includes("organic") && "🌱"}
-                      {amenity.toLowerCase().includes("traditional") && "🎭"}
-                      {![
-                        "wifi",
-                        "meal",
-                        "guide",
-                        "cooking",
-                        "organic",
-                        "traditional",
-                      ].some((keyword) =>
-                        amenity.toLowerCase().includes(keyword)
-                      ) && "✨"}
-                    </span>
-                    {amenity}
-                  </span>
-                ))}
-                {listing.amenities.length > 3 && (
-                  <span className="text-xs text-gray-500 px-2 py-1 bg-gray-50 rounded-full">
-                    +{listing.amenities.length - 3} more
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Match reasons section */}
-          {(listing.match_reasons ||
-            listing.emotion_reasons ||
-            listing.visual_match_reasons) && (
-            <div className="mb-4">
-              <div className="text-xs text-gray-600 mb-2 font-medium">
-                Why this matches:
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {(
-                  listing.match_reasons ||
-                  listing.emotion_reasons ||
-                  listing.visual_match_reasons ||
-                  []
-                )
-                  .slice(0, 2)
-                  .map((reason, i) => (
-                    <span
-                      key={i}
-                      className="text-xs bg-gradient-to-r from-green-50 to-emerald-50 text-green-700 px-2 py-1 rounded-full border border-green-200"
-                    >
-                      {reason}
-                    </span>
-                  ))}
-              </div>
-            </div>
-          )}
-
-          {listing.visual_match_reasons &&
-            listing.visual_match_reasons.length > 0 && (
-              <div className="px-6 pb-4">
-                <div className="text-xs text-gray-600 mb-2 font-medium">
-                  🖼️ Visual similarities:
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {listing.visual_match_reasons.slice(0, 2).map((reason, i) => (
-                    <span
-                      key={i}
-                      className="text-xs bg-gradient-to-r from-purple-50 to-violet-50 text-purple-700 px-2 py-1 rounded-full border border-purple-200"
-                    >
-                      {reason}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-          {/* Host Info */}
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
-                <span className="text-white text-xs font-bold">
-                  {listing.host?.full_name?.charAt(0) || "H"}
-                </span>
-              </div>
-              <div>
-                <div className="text-sm font-medium text-gray-900">
-                  {listing.host?.full_name || "Local Host"}
-                </div>
-                <div className="text-xs text-gray-500">Superhost ⭐</div>
-              </div>
-            </div>
-
-            <div className="text-right">
-              <div className="text-xs text-gray-500">Max guests</div>
-              <div className="flex items-center space-x-1">
-                <UserGroupIcon className="w-4 h-4 text-gray-400" />
-                <span className="text-sm font-medium text-gray-700">
-                  {listing.max_guests || 4}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Action Button */}
-          <Link href={`/listings/${listing.id}`}>
-            <motion.button
-              className="w-full bg-gradient-to-r from-green-500 via-green-600 to-emerald-600 hover:from-green-600 hover:via-green-700 hover:to-emerald-700 text-white font-semibold py-3 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <span className="flex items-center justify-center space-x-2">
-                <span>Explore Experience</span>
-                <SparklesIcon className="w-5 h-5" />
-              </span>
-            </motion.button>
-          </Link>
-        </div>
-      </div>
-    </motion.div>
-  );
-};
-
-// Regular Property Card Component (keeping your existing one but abbreviated for space)
-const PropertyCard = ({ listing, index }) => {
-  const [imageError, setImageError] = useState(false);
-  const [imageSrc, setImageSrc] = useState(
-    listing.images?.[0] || "/images/placeholder-village.jpg"
-  );
-  const [favorites, setFavorites] = useState(new Set());
-  const [hoveredCard, setHoveredCard] = useState(null);
-
-  const handleImageError = useCallback(() => {
-    if (!imageError) {
-      setImageError(true);
-      setImageSrc("");
-    }
-  }, [imageError]);
-
-  const toggleFavorite = useCallback((listingId) => {
-    setFavorites((prev) => {
-      const newFavorites = new Set(prev);
-      if (newFavorites.has(listingId)) {
-        newFavorites.delete(listingId);
-        toast.success("💔 Removed from favorites");
-      } else {
-        newFavorites.add(listingId);
-        toast.success("❤️ Added to favorites");
-      }
-      return newFavorites;
-    });
-  }, []);
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 30 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: index * 0.1 }}
-      onHoverStart={() => setHoveredCard(listing.id)}
-      onHoverEnd={() => setHoveredCard(null)}
-      className="group relative"
-    >
-      <div className="relative bg-white rounded-3xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2">
-        {/* Image Container */}
-        <div className="relative h-64 overflow-hidden bg-gradient-to-br from-green-100 to-emerald-200">
-          {imageError || !imageSrc ? (
-            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-green-400 to-emerald-500">
-              <div className="text-center text-white">
-                <div className="text-4xl mb-2">🏘️</div>
-                <div className="font-semibold text-lg">{listing.title}</div>
-                <div className="text-sm opacity-80">
-                  {listing.property_type?.replace("_", " ")}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <motion.img
-              src={imageSrc}
-              alt={listing.title}
-              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-              onError={handleImageError}
-              loading="lazy"
-            />
-          )}
-
-          {/* Top Badges */}
-          <div className="absolute top-4 left-4 flex flex-col space-y-2">
-            {listing.sustainability_features?.length > 0 && (
-              <div className="bg-gradient-to-r from-green-400 to-teal-500 text-white rounded-full px-3 py-1 text-xs font-bold shadow-lg">
-                🌱 Eco-Friendly
-              </div>
-            )}
-
-            <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-full px-3 py-1 text-xs font-bold shadow-lg">
-              ✨ {listing.property_type?.replace("_", " ").toUpperCase()}
-            </div>
-          </div>
-
-          {/* Favorite Button */}
-          <motion.button
-            onClick={() => toggleFavorite(listing.id)}
-            className="absolute top-4 right-4 p-2 bg-white/20 backdrop-blur-lg rounded-full border border-white/30 hover:bg-white/30 transition-all duration-300"
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-          >
-            {favorites.has(listing.id) ? (
-              <HeartSolidIcon className="w-5 h-5 text-red-500" />
-            ) : (
-              <HeartIcon className="w-5 h-5 text-white" />
-            )}
-          </motion.button>
-
-          {/* Rating Badge */}
-          <div className="absolute bottom-4 left-4 flex items-center space-x-1 bg-white/90 backdrop-blur-md rounded-xl px-3 py-2 shadow-lg">
-            <div className="flex">
-              {[...Array(5)].map((_, i) => (
-                <StarSolidIcon
-                  key={i}
-                  className={`w-4 h-4 ${
-                    i < Math.floor(listing.rating || 4.8)
-                      ? "text-yellow-400"
-                      : "text-gray-200"
-                  }`}
-                />
-              ))}
-            </div>
-            <span className="text-sm font-bold text-gray-900">
-              {listing.rating || "4.8"}
-            </span>
-            <span className="text-xs text-gray-500">(24)</span>
-          </div>
-
-          {/* Quick Actions Overlay */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{
-              opacity: hoveredCard === listing.id ? 1 : 0,
-            }}
-            className="absolute inset-0 flex items-center justify-center space-x-3"
-          >
-            <motion.button
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              className="p-3 bg-white/20 backdrop-blur-lg rounded-full text-white hover:bg-white/30 transition-all duration-300"
-            >
-              <EyeIcon className="w-6 h-6" />
-            </motion.button>
-
-            <motion.button
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              className="p-3 bg-white/20 backdrop-blur-lg rounded-full text-white hover:bg-white/30 transition-all duration-300"
-            >
-              <ShareIcon className="w-6 h-6" />
-            </motion.button>
-          </motion.div>
-        </div>
-
-        {/* Content */}
-        <div className="p-6">
-          <div className="flex items-start justify-between mb-3">
-            <h3 className="text-xl font-bold text-gray-900 line-clamp-2 flex-1 mr-2">
-              {listing.title}
-            </h3>
-            <div className="flex-shrink-0 text-right">
-              <div className="text-2xl font-bold text-gray-900">
-                {formatCurrency(listing.price_per_night)}
-              </div>
-              <div className="text-sm text-gray-500">/night</div>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-2 text-gray-600 mb-4">
-            <MapPinIcon className="w-4 h-4 text-green-500" />
-            <span className="text-sm">{listing.location}</span>
-          </div>
-
-          {/* Amenities Preview */}
-          {listing.amenities?.length > 0 && (
-            <div className="mb-4">
-              <div className="flex flex-wrap gap-2">
-                {listing.amenities.slice(0, 3).map((amenity, i) => (
-                  <span
-                    key={i}
-                    className="inline-flex items-center px-3 py-1 bg-gradient-to-r from-gray-50 to-gray-100 text-gray-700 rounded-full text-xs font-medium border border-gray-200"
-                  >
-                    <span className="mr-1">
-                      {amenity.toLowerCase().includes("wifi") && "📶"}
-                      {amenity.toLowerCase().includes("meal") && "🍽️"}
-                      {amenity.toLowerCase().includes("guide") && "👨‍🏫"}
-                      {amenity.toLowerCase().includes("cooking") && "👨‍🍳"}
-                      {amenity.toLowerCase().includes("organic") && "🌱"}
-                      {amenity.toLowerCase().includes("traditional") && "🎭"}
-                      {![
-                        "wifi",
-                        "meal",
-                        "guide",
-                        "cooking",
-                        "organic",
-                        "traditional",
-                      ].some((keyword) =>
-                        amenity.toLowerCase().includes(keyword)
-                      ) && "✨"}
-                    </span>
-                    {amenity}
-                  </span>
-                ))}
-                {listing.amenities.length > 3 && (
-                  <span className="text-xs text-gray-500 px-2 py-1 bg-gray-50 rounded-full">
-                    +{listing.amenities.length - 3} more
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Host Info */}
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
-                <span className="text-white text-xs font-bold">
-                  {listing.host?.full_name?.charAt(0) || "H"}
-                </span>
-              </div>
-              <div>
-                <div className="text-sm font-medium text-gray-900">
-                  {listing.host?.full_name || "Local Host"}
-                </div>
-                <div className="text-xs text-gray-500">Superhost ⭐</div>
-              </div>
-            </div>
-
-            <div className="text-right">
-              <div className="text-xs text-gray-500">Max guests</div>
-              <div className="flex items-center space-x-1">
-                <UserGroupIcon className="w-4 h-4 text-gray-400" />
-                <span className="text-sm font-medium text-gray-700">
-                  {listing.max_guests || 4}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Action Button */}
-          <Link href={`/listings/${listing.id}`}>
-            <motion.button
-              className="w-full bg-gradient-to-r from-green-500 via-green-600 to-emerald-600 hover:from-green-600 hover:via-green-700 hover:to-emerald-700 text-white font-semibold py-3 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <span className="flex items-center justify-center space-x-2">
-                <span>Explore Experience</span>
-                <SparklesIcon className="w-5 h-5" />
-              </span>
-            </motion.button>
-          </Link>
-        </div>
-      </div>
-    </motion.div>
-  );
-};
-
-const ListingsPage = () => {
-  const searchParams = useSearchParams();
-  const [listings, setListings] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [weatherData, setWeatherData] = useState(null);
-  const [weatherLoading, setWeatherLoading] = useState(false);
-  const [showWeatherModal, setShowWeatherModal] = useState(false);
-  const [weatherEnhancedListings, setWeatherEnhancedListings] = useState([]);
-  const [showWeatherSearch, setShowWeatherSearch] = useState(false);
-  const [favorites, setFavorites] = useState(new Set());
-  const [viewMode, setViewMode] = useState("grid");
-  const [hoveredCard, setHoveredCard] = useState(null);
-  const [showMapView, setShowMapView] = useState(false);
-
-  // Weather prediction state - NEW FEATURE
-  const [weeklyWeatherData, setWeeklyWeatherData] = useState(null);
-  const [weeklyWeatherLoading, setWeeklyWeatherLoading] = useState(false);
-  const [showWeeklyWeather, setShowWeeklyWeather] = useState(false);
-
-  // Advanced Search State
-  const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
-  const [advancedResults, setAdvancedResults] = useState([]);
-  const [searchMetadata, setSearchMetadata] = useState(null);
-
-  // Use refs to prevent unnecessary re-renders
-  const isInitialMount = useRef(true);
-  const lastFetchParams = useRef("");
-
-  const [filters, setFilters] = useState({
-    search: searchParams.get("q") || "",
-    location: searchParams.get("location") || "",
-    property_type: searchParams.get("property_type") || "",
-    min_price: searchParams.get("min_price") || "",
-    max_price: searchParams.get("max_price") || "",
-    guests: searchParams.get("guests") || "1",
-    check_in: "",
-    check_out: "",
-    sort_by: "rating",
-    order: "desc",
-  });
-
-  const [showFilters, setShowFilters] = useState(false);
-  const [pagination, setPagination] = useState({
-    page: 1,
-    limit: 12,
-    total_count: 0,
-    total_pages: 0,
-  });
-
-  // Weather helper functions
-  const getWeatherIcon = (weatherMain, temp) => {
-    const main = weatherMain?.toLowerCase();
-
-    if (temp > 30) return "☀️";
-    if (temp < 15) return "🌨️";
-
-    switch (main) {
-      case "clear":
-        return "☀️";
-      case "rain":
-        return "🌧️";
-      case "drizzle":
-        return "🌦️";
-      case "snow":
-        return "❄️";
-      case "clouds":
-        return "☁️";
-      case "thunderstorm":
-        return "⛈️";
-      case "mist":
-      case "fog":
-        return "🌫️";
-      default:
-        return "🌤️";
-    }
+  const getListingTypeIcon = () => {
+    return listing.listing_category === 'experience' ? (
+      <AcademicCapIcon className="w-4 h-4 text-purple-500" />
+    ) : (
+      <HomeIcon className="w-4 h-4 text-blue-500" />
+    );
   };
 
-  const getCategoryIcon = (category) => {
-    const icons = {
-      outdoor: "🚶‍♂️",
-      cultural: "🎭",
-      farming: "🌾",
-      craft: "🎨",
-      wellness: "🧘‍♀️",
-      photography: "📸",
-      cooking: "👨‍🍳",
-      nature: "🌿",
-      adventure: "🏔️",
-      spiritual: "🕉️",
-    };
-    return icons[category] || "✨";
+  const getListingTypeBadge = () => {
+    return listing.listing_category === 'experience' ? (
+      <span className="inline-flex items-center space-x-1 px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">
+        <AcademicCapIcon className="w-3 h-3" />
+        <span>Experience</span>
+      </span>
+    ) : (
+      <span className="inline-flex items-center space-x-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+        <HomeIcon className="w-3 h-3" />
+        <span>Homestay</span>
+      </span>
+    );
   };
 
-  const getPriorityBadge = (priority) => {
-    const colors = {
-      high: "bg-emerald-100 text-emerald-800 border-emerald-200",
-      medium: "bg-amber-100 text-amber-800 border-amber-200",
-      low: "bg-slate-100 text-slate-600 border-slate-200",
-    };
-    return colors[priority] || colors.medium;
-  };
-
-  const getWeatherAdvice = (weather) => {
-    if (!weather) return null;
-
-    const temp = weather.temperature;
-    const condition = weather.main?.toLowerCase();
-
-    if (temp > 35) {
+  const getListingPrice = () => {
+    if (listing.listing_category === 'experience') {
       return {
-        type: "warning",
-        message: "Very hot weather. Stay hydrated and avoid midday sun.",
-        bgColor: "bg-red-50",
-        borderColor: "border-red-200",
-        textColor: "text-red-800",
-      };
-    } else if (temp < 10) {
-      return {
-        type: "info",
-        message:
-          "Cold weather. Pack warm clothes and enjoy cozy indoor activities.",
-        bgColor: "bg-blue-50",
-        borderColor: "border-blue-200",
-        textColor: "text-blue-800",
-      };
-    } else if (condition === "rain") {
-      return {
-        type: "info",
-        message: "Rainy weather. Perfect for indoor cultural activities.",
-        bgColor: "bg-blue-50",
-        borderColor: "border-blue-200",
-        textColor: "text-blue-800",
+        amount: listing.price_per_person,
+        unit: '/person'
       };
     } else {
       return {
-        type: "success",
-        message: "Great weather for exploring village life and local culture.",
-        bgColor: "bg-emerald-50",
-        borderColor: "border-emerald-200",
-        textColor: "text-emerald-800",
+        amount: listing.price_per_night,
+        unit: '/night'
       };
     }
   };
 
-  // Weather API functions
-  const fetchWeatherRecommendations = async () => {
-    if (!filters.location.trim()) {
-      toast.error("Please enter a location first");
-      return;
-    }
-
-    setWeatherLoading(true);
-    try {
-      const response = await aiAPI.getWeatherRecommendations({
-        location: filters.location.trim(),
-      });
-      setWeatherData(response);
-      toast.success("🌤️ Weather insights loaded!");
-    } catch (error) {
-      console.error("Weather recommendations error:", error);
-      const errorMessage =
-        error.response?.data?.error ||
-        "Unable to get weather data for this location";
-      toast.error(errorMessage);
-    } finally {
-      setWeatherLoading(false);
+  const getListingDetailsUrl = () => {
+    if (listing.listing_category === 'experience') {
+      return `/experiences/${listing.id}`;
+    } else {
+      return `/listings/${listing.id}`;
     }
   };
 
-  // NEW: Weekly weather prediction function - PREDICT FOR NEXT WEEK
-  const fetchWeeklyWeatherPrediction = async () => {
-    if (!filters.location.trim()) {
-      toast.error("Please enter a location first");
-      return;
-    }
+  const price = getListingPrice();
 
-    setWeeklyWeatherLoading(true);
-    try {
-      const response = await aiAPI.getWeeklyWeatherPrediction({
-        location: filters.location.trim(),
-      });
-      setWeeklyWeatherData(response);
-      setShowWeeklyWeather(true);
-      toast.success("📅 7-day weather prediction loaded!");
-    } catch (error) {
-      console.error("Weekly weather prediction error:", error);
-      const errorMessage =
-        error.response?.data?.error ||
-        "Unable to get weather prediction for this location";
-      toast.error(errorMessage);
-    } finally {
-      setWeeklyWeatherLoading(false);
-    }
-  };
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 30 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: index * 0.1 }}
+      className="group relative"
+    >
+      <div className="relative bg-white rounded-3xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2">
+        {/* Image Container */}
+        <div className="relative h-64 overflow-hidden bg-gradient-to-br from-green-100 to-emerald-200">
+          {imageError || !imageSrc ? (
+            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-green-400 to-emerald-500">
+              <div className="text-center text-white">
+                <div className="text-4xl mb-2">🏘️</div>
+                <div className="font-semibold text-lg">{listing.title}</div>
+                <div className="text-sm opacity-80">
+                  {listing.listing_category === 'experience' ? listing.category : listing.property_type?.replace("_", " ")}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <motion.img
+              src={imageSrc}
+              alt={listing.title}
+              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+              onError={handleImageError}
+              loading="lazy"
+            />
+          )}
 
-  const handleWeatherEnhancedSearch = async () => {
-    if (!filters.location.trim()) {
-      toast.error("Please enter a location for smart search");
-      return;
-    }
+          {/* Enhanced badges */}
+          <div className="absolute top-4 left-4 flex flex-col space-y-2 z-10">
+           {searchType && (
+             <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-full px-3 py-1 text-xs font-bold shadow-lg">
+               {getSearchBadge(searchType, listing)}
+             </div>
+           )}
 
-    setLoading(true);
-    try {
-      console.log("🔍 Starting weather-enhanced search for:", filters.location);
+           {getListingTypeBadge()}
 
-      const response = await aiAPI.getWeatherEnhancedSearch({
-        location: filters.location,
-        check_in: filters.check_in,
-        check_out: filters.check_out,
-        preferences: ["outdoor", "cultural", "farming"],
-      });
+           {listing.visual_similarity_score && (
+             <div className="bg-gradient-to-r from-purple-500 to-violet-500 text-white rounded-full px-3 py-1 text-xs font-bold shadow-lg">
+               🎯 {Math.round(listing.visual_similarity_score)}% Visual Match
+             </div>
+           )}
 
-      console.log("📊 Weather search response:", response);
+           {listing.semantic_score && (
+             <div className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-full px-3 py-1 text-xs font-bold shadow-lg">
+               🎯 {Math.round(listing.semantic_score)}% Match
+             </div>
+           )}
 
-      if (response && response.weather_enhanced_listings) {
-        setWeatherEnhancedListings(response.weather_enhanced_listings);
-        setWeatherData(response);
-        setShowWeatherSearch(true);
+           {listing.emotion_score && (
+             <div className="bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-full px-3 py-1 text-xs font-bold shadow-lg">
+               💝 {Math.round(listing.emotion_score)}% Emotional Match
+             </div>
+           )}
 
-        console.log(
-          "✅ Weather enhanced listings set:",
-          response.weather_enhanced_listings.length
-        );
-        toast.success(
-          `🌤️ Found ${response.weather_enhanced_listings.length} weather-optimized results!`
-        );
-      } else {
-        console.log("⚠️ No weather enhanced listings in response");
-        setShowWeatherSearch(false);
-        toast.info("Weather data loaded, showing regular results");
-      }
-    } catch (error) {
-      console.error("❌ Weather search error:", error);
-      setShowWeatherSearch(false);
-      toast.error("Failed to get weather-enhanced recommendations");
-    } finally {
-      setLoading(false);
-    }
-  };
+           {listing.sustainability_features?.length > 0 && (
+             <div className="bg-gradient-to-r from-green-400 to-teal-500 text-white rounded-full px-3 py-1 text-xs font-bold shadow-lg">
+               🌱 Eco-Friendly
+             </div>
+           )}
+         </div>
 
-  // Advanced Search Handler
-  const handleAdvancedResults = useCallback((results, metadata) => {
-    setAdvancedResults(results);
-    setSearchMetadata(metadata);
-    setShowAdvancedSearch(false);
-    // Clear other search results to show advanced results prominently
-    setShowWeatherSearch(false);
-  }, []);
+         {/* Rating Badge */}
+         <div className="absolute bottom-4 left-4 flex items-center space-x-1 bg-white/90 backdrop-blur-md rounded-xl px-3 py-2 shadow-lg">
+           <div className="flex">
+             {[...Array(5)].map((_, i) => (
+               <StarSolidIcon
+                 key={i}
+                 className={`w-4 h-4 ${
+                   i < Math.floor(listing.rating || 4.8)
+                     ? "text-yellow-400"
+                     : "text-gray-200"
+                 }`}
+               />
+             ))}
+           </div>
+           <span className="text-sm font-bold text-gray-900">
+             {listing.rating || "4.8"}
+           </span>
+           <span className="text-xs text-gray-500">(24)</span>
+         </div>
+       </div>
 
-  const getSearchTypeTitle = (type) => {
-    const titles = {
-      semantic: "🧠 AI Semantic",
-      emotion: "💝 Emotion-Based",
-      image: "📸 Visual",
-      smart: "🤖 AI Smart",
-    };
-    return titles[type] || "Advanced";
-  };
+       {/* Content */}
+       <div className="p-6">
+         <div className="flex items-start justify-between mb-3">
+           <h3 className="text-xl font-bold text-gray-900 line-clamp-2 flex-1 mr-2">
+             {listing.title}
+           </h3>
+           <div className="flex-shrink-0 text-right">
+             <div className="text-2xl font-bold text-gray-900">
+               {formatCurrency(price.amount)}
+             </div>
+             <div className="text-sm text-gray-500">{price.unit}</div>
+           </div>
+         </div>
 
-  // Memoized fetch function to prevent recreating on every render
-  const fetchListings = useCallback(async () => {
-    const params = {
-      ...filters,
-      page: pagination.page,
-      limit: pagination.limit,
-    };
+         <div className="flex items-center space-x-2 text-gray-600 mb-4">
+           <MapPinIcon className="w-4 h-4 text-green-500" />
+           <span className="text-sm">{listing.location}</span>
+         </div>
 
-    // Remove empty params
-    Object.keys(params).forEach((key) => {
-      if (params[key] === "" || params[key] === null) {
-        delete params[key];
-      }
-    });
+         {/* Type-specific details */}
+         {listing.listing_category === 'experience' ? (
+           <div className="mb-4 space-y-2">
+             <div className="flex items-center justify-between text-sm">
+               <span className="text-gray-600">Duration:</span>
+               <span className="font-medium">{listing.duration} hours</span>
+             </div>
+             <div className="flex items-center justify-between text-sm">
+               <span className="text-gray-600">Group size:</span>
+               <span className="font-medium">Up to {listing.max_participants} people</span>
+             </div>
+             <div className="flex items-center justify-between text-sm">
+               <span className="text-gray-600">Category:</span>
+               <span className="font-medium capitalize">{listing.category}</span>
+             </div>
+           </div>
+         ) : (
+           <div className="mb-4 space-y-2">
+             <div className="flex items-center justify-between text-sm">
+               <span className="text-gray-600">Property type:</span>
+               <span className="font-medium capitalize">{listing.property_type?.replace('_', ' ')}</span>
+             </div>
+             <div className="flex items-center justify-between text-sm">
+               <span className="text-gray-600">Max guests:</span>
+               <span className="font-medium">{listing.max_guests} people</span>
+             </div>
+           </div>
+         )}
 
-    // Create a unique key for this request
-    const paramKey = JSON.stringify(params);
+         {/* Match reasons section */}
+         {(listing.match_reasons ||
+           listing.emotion_reasons ||
+           listing.visual_match_reasons) && (
+           <div className="mb-4">
+             <div className="text-xs text-gray-600 mb-2 font-medium">
+               Why this matches:
+             </div>
+             <div className="flex flex-wrap gap-1">
+               {(
+                 listing.match_reasons ||
+                 listing.emotion_reasons ||
+                 listing.visual_match_reasons ||
+                 []
+               )
+                 .slice(0, 2)
+                 .map((reason, i) => (
+                   <span
+                     key={i}
+                     className="text-xs bg-gradient-to-r from-green-50 to-emerald-50 text-green-700 px-2 py-1 rounded-full border border-green-200"
+                   >
+                     {reason}
+                   </span>
+                 ))}
+             </div>
+           </div>
+         )}
 
-    // Prevent duplicate requests
-    if (paramKey === lastFetchParams.current && !isInitialMount.current) {
-      return;
-    }
+         {/* Host Info */}
+         <div className="flex items-center justify-between mb-4">
+           <div className="flex items-center space-x-2">
+             <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
+               <span className="text-white text-xs font-bold">
+                 {listing.host?.full_name?.charAt(0) || "H"}
+               </span>
+             </div>
+             <div>
+               <div className="text-sm font-medium text-gray-900">
+                 {listing.host?.full_name || "Local Host"}
+               </div>
+               <div className="text-xs text-gray-500">Superhost ⭐</div>
+             </div>
+           </div>
+         </div>
 
-    lastFetchParams.current = paramKey;
-    setLoading(true);
+         {/* Action Button */}
+         <Link href={getListingDetailsUrl()}>
+           <motion.button
+             className="w-full bg-gradient-to-r from-green-500 via-green-600 to-emerald-600 hover:from-green-600 hover:via-green-700 hover:to-emerald-700 text-white font-semibold py-3 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5"
+             whileHover={{ scale: 1.02 }}
+             whileTap={{ scale: 0.98 }}
+           >
+             <span className="flex items-center justify-center space-x-2">
+               <span>Explore {listing.listing_category === 'experience' ? 'Experience' : 'Stay'}</span>
+               <SparklesIcon className="w-5 h-5" />
+             </span>
+           </motion.button>
+         </Link>
+       </div>
+     </div>
+   </motion.div>
+ );
+};
 
-    try {
-      const response = await listingsAPI.getAll(params);
-      setListings(response.data.listings || []);
-      setPagination((prev) => ({
-        ...prev,
-        ...response.data.pagination,
-      }));
-    } catch (error) {
-      console.error("Failed to fetch listings:", error);
-      toast.error("Failed to load listings");
-    } finally {
-      setLoading(false);
-      isInitialMount.current = false;
-    }
-  }, [filters, pagination.page, pagination.limit]);
+// Regular Property Card Component (for both homestays and experiences)
+const PropertyCard = ({ listing, index }) => {
+ const [imageError, setImageError] = useState(false);
+ const [imageSrc, setImageSrc] = useState(
+   listing.images?.[0] || "/images/placeholder-village.jpg"
+ );
+ const [favorites, setFavorites] = useState(new Set());
+ const [hoveredCard, setHoveredCard] = useState(null);
 
-  // Single useEffect for fetching - only runs when dependencies actually change
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      fetchListings();
-    }, 300); // Debounce to prevent rapid calls
+ const handleImageError = useCallback(() => {
+   if (!imageError) {
+     setImageError(true);
+     setImageSrc("");
+   }
+ }, [imageError]);
 
-    return () => clearTimeout(timeoutId);
-  }, [fetchListings]);
+ const toggleFavorite = useCallback((listingId) => {
+   setFavorites((prev) => {
+     const newFavorites = new Set(prev);
+     if (newFavorites.has(listingId)) {
+       newFavorites.delete(listingId);
+       toast.success("💔 Removed from favorites");
+     } else {
+       newFavorites.add(listingId);
+       toast.success("❤️ Added to favorites");
+     }
+     return newFavorites;
+   });
+ }, []);
 
-  const handleFilterChange = useCallback(
-    (key, value) => {
-      setFilters((prev) => ({
-        ...prev,
-        [key]: value,
-      }));
-      // Reset pagination when filters change
-      if (pagination.page !== 1) {
-        setPagination((prev) => ({ ...prev, page: 1 }));
-      }
-    },
-    [pagination.page]
-  );
+ const getListingTypeIcon = () => {
+   return listing.listing_category === 'experience' ? (
+     <AcademicCapIcon className="w-4 h-4 text-purple-500" />
+   ) : (
+     <HomeIcon className="w-4 h-4 text-blue-500" />
+   );
+ };
 
-  const handleSearch = useCallback(
-    (e) => {
-      e.preventDefault();
-      setShowWeatherSearch(false);
-      // Clear advanced results
+ const getListingTypeBadge = () => {
+   return listing.listing_category === 'experience' ? (
+     <span className="inline-flex items-center space-x-1 px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">
+       <AcademicCapIcon className="w-3 h-3" />
+       <span>Experience</span>
+     </span>
+   ) : (
+     <span className="inline-flex items-center space-x-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+       <HomeIcon className="w-3 h-3" />
+       <span>Homestay</span>
+     </span>
+   );
+ };
+
+ const getListingPrice = () => {
+   if (listing.listing_category === 'experience') {
+     return {
+       amount: listing.price_per_person,
+       unit: '/person'
+     };
+   } else {
+     return {
+       amount: listing.price_per_night,
+       unit: '/night'
+     };
+   }
+ };
+
+ const getListingDetailsUrl = () => {
+   if (listing.listing_category === 'experience') {
+     return `/experiences/${listing.id}`;
+   } else {
+     return `/listings/${listing.id}`;
+   }
+ };
+
+ const price = getListingPrice();
+
+ return (
+   <motion.div
+     initial={{ opacity: 0, y: 30 }}
+     animate={{ opacity: 1, y: 0 }}
+     transition={{ duration: 0.5, delay: index * 0.1 }}
+     onHoverStart={() => setHoveredCard(listing.id)}
+     onHoverEnd={() => setHoveredCard(null)}
+     className="group relative"
+   >
+     <div className="relative bg-white rounded-3xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2">
+       {/* Image Container */}
+       <div className="relative h-64 overflow-hidden bg-gradient-to-br from-green-100 to-emerald-200">
+         {imageError || !imageSrc ? (
+           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-green-400 to-emerald-500">
+             <div className="text-center text-white">
+               <div className="text-4xl mb-2">
+                 {listing.listing_category === 'experience' ? '🎯' : '🏘️'}
+               </div>
+               <div className="font-semibold text-lg">{listing.title}</div>
+               <div className="text-sm opacity-80">
+                 {listing.listing_category === 'experience' ? listing.category : listing.property_type?.replace("_", " ")}
+               </div>
+             </div>
+           </div>
+         ) : (
+           <motion.img
+             src={imageSrc}
+             alt={listing.title}
+             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+             onError={handleImageError}
+             loading="lazy"
+           />
+         )}
+
+         {/* Top Badges */}
+         <div className="absolute top-4 left-4 flex flex-col space-y-2">
+           {getListingTypeBadge()}
+
+           {listing.sustainability_features?.length > 0 && (
+             <div className="bg-gradient-to-r from-green-400 to-teal-500 text-white rounded-full px-3 py-1 text-xs font-bold shadow-lg">
+               🌱 Eco-Friendly
+             </div>
+           )}
+
+           {listing.listing_category === 'experience' && listing.difficulty_level && (
+             <div className={`px-3 py-1 rounded-full text-xs font-bold shadow-lg ${
+               listing.difficulty_level === 'easy' ? 'bg-green-500 text-white' :
+               listing.difficulty_level === 'moderate' ? 'bg-yellow-500 text-white' :
+               'bg-red-500 text-white'
+             }`}>
+               {listing.difficulty_level}
+             </div>
+           )}
+         </div>
+
+         {/* Favorite Button */}
+         <motion.button
+           onClick={() => toggleFavorite(listing.id)}
+           className="absolute top-4 right-4 p-2 bg-white/20 backdrop-blur-lg rounded-full border border-white/30 hover:bg-white/30 transition-all duration-300"
+           whileHover={{ scale: 1.1 }}
+           whileTap={{ scale: 0.9 }}
+         >
+           {favorites.has(listing.id) ? (
+             <HeartSolidIcon className="w-5 h-5 text-red-500" />
+           ) : (
+             <HeartIcon className="w-5 h-5 text-white" />
+           )}
+         </motion.button>
+
+         {/* Rating Badge */}
+         <div className="absolute bottom-4 left-4 flex items-center space-x-1 bg-white/90 backdrop-blur-md rounded-xl px-3 py-2 shadow-lg">
+           <div className="flex">
+             {[...Array(5)].map((_, i) => (
+               <StarSolidIcon
+                 key={i}
+                 className={`w-4 h-4 ${
+                   i < Math.floor(listing.rating || 4.8)
+                     ? "text-yellow-400"
+                     : "text-gray-200"
+                 }`}
+               />
+             ))}
+           </div>
+           <span className="text-sm font-bold text-gray-900">
+             {listing.rating || "4.8"}
+           </span>
+           <span className="text-xs text-gray-500">(24)</span>
+         </div>
+
+         {/* Quick Actions Overlay */}
+         <motion.div
+           initial={{ opacity: 0 }}
+           animate={{
+             opacity: hoveredCard === listing.id ? 1 : 0,
+           }}
+           className="absolute inset-0 flex items-center justify-center space-x-3"
+         >
+           <motion.button
+             whileHover={{ scale: 1.1 }}
+             whileTap={{ scale: 0.9 }}
+             className="p-3 bg-white/20 backdrop-blur-lg rounded-full text-white hover:bg-white/30 transition-all duration-300"
+           >
+             <EyeIcon className="w-6 h-6" />
+           </motion.button>
+
+           <motion.button
+             whileHover={{ scale: 1.1 }}
+             whileTap={{ scale: 0.9 }}
+             className="p-3 bg-white/20 backdrop-blur-lg rounded-full text-white hover:bg-white/30 transition-all duration-300"
+           >
+             <ShareIcon className="w-6 h-6" />
+           </motion.button>
+         </motion.div>
+       </div>
+
+       {/* Content */}
+       <div className="p-6">
+         <div className="flex items-start justify-between mb-3">
+           <h3 className="text-xl font-bold text-gray-900 line-clamp-2 flex-1 mr-2">
+             {listing.title}
+           </h3>
+           <div className="flex-shrink-0 text-right">
+             <div className="text-2xl font-bold text-gray-900">
+               {formatCurrency(price.amount)}
+             </div>
+             <div className="text-sm text-gray-500">{price.unit}</div>
+           </div>
+         </div>
+
+         <div className="flex items-center space-x-2 text-gray-600 mb-4">
+           <MapPinIcon className="w-4 h-4 text-green-500" />
+           <span className="text-sm">{listing.location}</span>
+         </div>
+
+         {/* Type-specific details */}
+         {listing.listing_category === 'experience' ? (
+           <div className="mb-4 space-y-2">
+             <div className="flex items-center justify-between text-sm">
+               <span className="text-gray-600">Duration:</span>
+               <span className="font-medium">{listing.duration} hours</span>
+             </div>
+             <div className="flex items-center justify-between text-sm">
+               <span className="text-gray-600">Group size:</span>
+               <span className="font-medium">Up to {listing.max_participants} people</span>
+             </div>
+             <div className="flex items-center justify-between text-sm">
+               <span className="text-gray-600">Category:</span>
+               <span className="font-medium capitalize">{listing.category}</span>
+             </div>
+           </div>
+         ) : (
+           <>
+             {/* Amenities Preview for homestays */}
+             {listing.amenities?.length > 0 && (
+               <div className="mb-4">
+                 <div className="flex flex-wrap gap-2">
+                   {listing.amenities.slice(0, 3).map((amenity, i) => (
+                     <span
+                       key={i}
+                       className="inline-flex items-center px-3 py-1 bg-gradient-to-r from-gray-50 to-gray-100 text-gray-700 rounded-full text-xs font-medium border border-gray-200"
+                     >
+                       <span className="mr-1">
+                         {amenity.toLowerCase().includes("wifi") && "📶"}
+                         {amenity.toLowerCase().includes("meal") && "🍽️"}
+                         {amenity.toLowerCase().includes("guide") && "👨‍🏫"}
+                         {amenity.toLowerCase().includes("cooking") && "👨‍🍳"}
+                         {amenity.toLowerCase().includes("organic") && "🌱"}
+                         {amenity.toLowerCase().includes("traditional") && "🎭"}
+                         {![
+                           "wifi",
+                           "meal",
+                           "guide",
+                           "cooking",
+                           "organic",
+                           "traditional",
+                         ].some((keyword) =>
+                           amenity.toLowerCase().includes(keyword)
+                         ) && "✨"}
+                       </span>
+                       {amenity}
+                     </span>
+                   ))}
+                   {listing.amenities.length > 3 && (
+                     <span className="text-xs text-gray-500 px-2 py-1 bg-gray-50 rounded-full">
+                       +{listing.amenities.length - 3} more
+                     </span>
+                   )}
+                 </div>
+               </div>
+             )}
+           </>
+         )}
+
+         {/* Host Info */}
+         <div className="flex items-center justify-between mb-4">
+           <div className="flex items-center space-x-2">
+             <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
+               <span className="text-white text-xs font-bold">
+                 {listing.host?.full_name?.charAt(0) || "H"}
+               </span>
+             </div>
+             <div>
+               <div className="text-sm font-medium text-gray-900">
+                 {listing.host?.full_name || "Local Host"}
+               </div>
+               <div className="text-xs text-gray-500">Superhost ⭐</div>
+             </div>
+           </div>
+
+           <div className="text-right">
+             <div className="text-xs text-gray-500">
+               {listing.listing_category === 'experience' ? 'Max participants' : 'Max guests'}
+             </div>
+             <div className="flex items-center space-x-1">
+               <UserGroupIcon className="w-4 h-4 text-gray-400" />
+               <span className="text-sm font-medium text-gray-700">
+                 {listing.listing_category === 'experience' ? listing.max_participants || 8 : listing.max_guests || 4}
+               </span>
+             </div>
+           </div>
+         </div>
+
+         {/* Action Button */}
+         <Link href={getListingDetailsUrl()}>
+           <motion.button
+             className="w-full bg-gradient-to-r from-green-500 via-green-600 to-emerald-600 hover:from-green-600 hover:via-green-700 hover:to-emerald-700 text-white font-semibold py-3 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5"
+             whileHover={{ scale: 1.02 }}
+             whileTap={{ scale: 0.98 }}
+           >
+             <span className="flex items-center justify-center space-x-2">
+               <span>Explore {listing.listing_category === 'experience' ? 'Experience' : 'Stay'}</span>
+               <SparklesIcon className="w-5 h-5" />
+             </span>
+           </motion.button>
+         </Link>
+       </div>
+     </div>
+   </motion.div>
+ );
+};
+
+const ListingsPage = () => {
+ const searchParams = useSearchParams();
+ const [listings, setListings] = useState([]);
+ const [loading, setLoading] = useState(true);
+ const [weatherData, setWeatherData] = useState(null);
+ const [weatherLoading, setWeatherLoading] = useState(false);
+ const [showWeatherModal, setShowWeatherModal] = useState(false);
+ const [weatherEnhancedListings, setWeatherEnhancedListings] = useState([]);
+ const [showWeatherSearch, setShowWeatherSearch] = useState(false);
+ const [favorites, setFavorites] = useState(new Set());
+ const [viewMode, setViewMode] = useState("grid");
+ const [hoveredCard, setHoveredCard] = useState(null);
+ const [showMapView, setShowMapView] = useState(false);
+
+ // Weather prediction state
+ const [weeklyWeatherData, setWeeklyWeatherData] = useState(null);
+ const [weeklyWeatherLoading, setWeeklyWeatherLoading] = useState(false);
+ const [showWeeklyWeather, setShowWeeklyWeather] = useState(false);
+
+ // Advanced Search State
+ const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
+ const [advancedResults, setAdvancedResults] = useState([]);
+ const [searchMetadata, setSearchMetadata] = useState(null);
+
+ // Filter state to include both homestays and experiences
+ const [filters, setFilters] = useState({
+   search: searchParams.get("q") || "",
+   location: searchParams.get("location") || "",
+   listing_type: searchParams.get("listing_type") || "all", // 'all', 'homestay', 'experience'
+   property_type: searchParams.get("property_type") || "",
+   min_price: searchParams.get("min_price") || "",
+   max_price: searchParams.get("max_price") || "",
+   guests: searchParams.get("guests") || "1",
+   check_in: "",
+   check_out: "",
+   sort_by: "rating",
+   order: "desc",
+ });
+
+ const [showFilters, setShowFilters] = useState(false);
+ const [pagination, setPagination] = useState({
+   page: 1,
+   limit: 12,
+   total_count: 0,
+   total_pages: 0,
+ });
+
+ // Use refs to prevent unnecessary re-renders
+ const isInitialMount = useRef(true);
+ const lastFetchParams = useRef("");
+
+ // Weather helper functions
+ const getWeatherIcon = (weatherMain, temp) => {
+   const main = weatherMain?.toLowerCase();
+
+   if (temp > 30) return "☀️";
+   if (temp < 15) return "🌨️";
+
+   switch (main) {
+     case "clear":
+       return "☀️";
+     case "rain":
+       return "🌧️";
+     case "drizzle":
+       return "🌦️";
+     case "snow":
+       return "❄️";
+     case "clouds":
+       return "☁️";
+     case "thunderstorm":
+       return "⛈️";
+     case "mist":
+     case "fog":
+       return "🌫️";
+     default:
+       return "🌤️";
+   }
+ };
+
+ const getCategoryIcon = (category) => {
+   const icons = {
+     outdoor: "🚶‍♂️",
+     cultural: "🎭",
+     farming: "🌾",
+     craft: "🎨",
+     wellness: "🧘‍♀️",
+     photography: "📸",
+     cooking: "👨‍🍳",
+     nature: "🌿",
+     adventure: "🏔️",
+     spiritual: "🕉️",
+   };
+   return icons[category] || "✨";
+ };
+
+ const getPriorityBadge = (priority) => {
+   const colors = {
+     high: "bg-emerald-100 text-emerald-800 border-emerald-200",
+     medium: "bg-amber-100 text-amber-800 border-amber-200",
+     low: "bg-slate-100 text-slate-600 border-slate-200",
+   };
+   return colors[priority] || colors.medium;
+ };
+
+ const getWeatherAdvice = (weather) => {
+   if (!weather) return null;
+
+   const temp = weather.temperature;
+   const condition = weather.main?.toLowerCase();
+
+   if (temp > 35) {
+     return {
+       type: "warning",
+       message: "Very hot weather. Stay hydrated and avoid midday sun.",
+       bgColor: "bg-red-50",
+       borderColor: "border-red-200",
+       textColor: "text-red-800",
+     };
+   } else if (temp < 10) {
+     return {
+       type: "info",
+       message:
+         "Cold weather. Pack warm clothes and enjoy cozy indoor activities.",
+       bgColor: "bg-blue-50",
+       borderColor: "border-blue-200",
+       textColor: "text-blue-800",
+     };
+   } else if (condition === "rain") {
+     return {
+       type: "info",
+       message: "Rainy weather. Perfect for indoor cultural activities.",
+       bgColor: "bg-blue-50",
+       borderColor: "border-blue-200",
+       textColor: "text-blue-800",
+     };
+   } else {
+     return {
+       type: "success",
+       message: "Great weather for exploring village life and local culture.",
+       bgColor: "bg-emerald-50",
+       borderColor: "border-emerald-200",
+       textColor: "text-emerald-800",
+     };
+   }
+ };
+
+ // Weather API functions
+ const fetchWeatherRecommendations = async () => {
+   if (!filters.location.trim()) {
+     toast.error("Please enter a location first");
+     return;
+   }
+
+   setWeatherLoading(true);
+   try {
+     const response = await aiAPI.getWeatherRecommendations({
+       location: filters.location.trim(),
+     });
+     setWeatherData(response);
+     toast.success("🌤️ Weather insights loaded!");
+   } catch (error) {
+     console.error("Weather recommendations error:", error);
+     const errorMessage =
+       error.response?.data?.error ||
+       "Unable to get weather data for this location";
+     toast.error(errorMessage);
+   } finally {
+     setWeatherLoading(false);
+   }
+ };
+
+ // Weekly weather prediction function
+ const fetchWeeklyWeatherPrediction = async () => {
+   if (!filters.location.trim()) {
+     toast.error("Please enter a location first");
+     return;
+   }
+
+   setWeeklyWeatherLoading(true);
+   try {
+     const response = await aiAPI.getWeeklyWeatherPrediction({
+       location: filters.location.trim(),
+     });
+     setWeeklyWeatherData(response);
+     setShowWeeklyWeather(true);
+     toast.success("📅 7-day weather prediction loaded!");
+   } catch (error) {
+     console.error("Weekly weather prediction error:", error);
+     const errorMessage =
+       error.response?.data?.error ||
+       "Unable to get weather prediction for this location";
+     toast.error(errorMessage);
+   } finally {
+     setWeeklyWeatherLoading(false);
+   }
+ };
+
+ const handleWeatherEnhancedSearch = async () => {
+   if (!filters.location.trim()) {
+     toast.error("Please enter a location for smart search");
+     return;
+   }
+
+   setLoading(true);
+   try {
+     console.log("🔍 Starting weather-enhanced search for:", filters.location);
+
+     const response = await aiAPI.getWeatherEnhancedSearch({
+       location: filters.location,
+       check_in: filters.check_in,
+       check_out: filters.check_out,
+       preferences: ["outdoor", "cultural", "farming"],
+     });
+
+     console.log("📊 Weather search response:", response);
+
+     if (response && response.weather_enhanced_listings) {
+       setWeatherEnhancedListings(response.weather_enhanced_listings);
+       setWeatherData(response);
+       setShowWeatherSearch(true);
+
+       console.log(
+         "✅ Weather enhanced listings set:",
+         response.weather_enhanced_listings.length
+       );
+       toast.success(
+         `🌤️ Found ${response.weather_enhanced_listings.length} weather-optimized results!`
+       );
+     } else {
+       console.log("⚠️ No weather enhanced listings in response");
+       setShowWeatherSearch(false);
+       toast.info("Weather data loaded, showing regular results");
+     }
+   } catch (error) {
+     console.error("❌ Weather search error:", error);
+     setShowWeatherSearch(false);
+     toast.error("Failed to get weather-enhanced recommendations");
+   } finally {
+     setLoading(false);
+   }
+ };
+
+ // Advanced Search Handler
+ const handleAdvancedResults = useCallback((results, metadata) => {
+   setAdvancedResults(results);
+   setSearchMetadata(metadata);
+   setShowAdvancedSearch(false);
+   // Clear other search results to show advanced results prominently
+   setShowWeatherSearch(false);
+ }, []);
+
+ const getSearchTypeTitle = (type) => {
+   const titles = {
+     semantic: "🧠 AI Semantic",
+     emotion: "💝 Emotion-Based",
+     image: "📸 Visual",
+     smart: "🤖 AI Smart",
+   };
+   return titles[type] || "Advanced";
+ };
+
+ // Unified fetch function for both homestays and experiences
+ const fetchListings = useCallback(async () => {
+   const params = {
+     ...filters,
+     page: pagination.page,
+     limit: pagination.limit,
+   };
+
+   // Remove empty params
+   Object.keys(params).forEach((key) => {
+     if (params[key] === "" || params[key] === null) {
+       delete params[key];
+     }
+   });
+
+   // Create a unique key for this request
+   const paramKey = JSON.stringify(params);
+
+   // Prevent duplicate requests
+   if (paramKey === lastFetchParams.current && !isInitialMount.current) {
+     return;
+   }
+
+   lastFetchParams.current = paramKey;
+   setLoading(true);
+
+   try {
+     // Use the unified search API that handles both homestays and experiences
+     const response = await listingsAPI.searchAll(params);
+     
+     // The API returns combined results
+     setListings(response.listings || []);
+     setPagination((prev) => ({
+       ...prev,
+       total_count: response.total_count || 0,
+       total_pages: Math.ceil((response.total_count || 0) / pagination.limit),
+     }));
+   } catch (error) {
+     console.error("Failed to fetch listings:", error);
+     toast.error("Failed to load listings");
+   } finally {
+     setLoading(false);
+     isInitialMount.current = false;
+   }
+ }, [filters, pagination.page, pagination.limit]);
+
+ // Single useEffect for fetching - only runs when dependencies actually change
+ useEffect(() => {
+   const timeoutId = setTimeout(() => {
+     fetchListings();
+   }, 300); // Debounce to prevent rapid calls
+
+   return () => clearTimeout(timeoutId);
+ }, [fetchListings]);
+
+ const handleFilterChange = useCallback(
+   (key, value) => {
+     setFilters((prev) => ({
+       ...prev,
+       [key]: value,
+     }));
+     // Reset pagination when filters change
+     if (pagination.page !== 1) {
+       setPagination((prev) => ({ ...prev, page: 1 }));
+     }
+   },
+   [pagination.page]
+ );
+
+ const handleSearch = useCallback(
+   (e) => {
+     e.preventDefault();
+     setShowWeatherSearch(false);
+     // Clear advanced results
      setAdvancedResults([]);
      // Force refetch by updating lastFetchParams
      lastFetchParams.current = "";
@@ -1540,6 +1627,7 @@ const ListingsPage = () => {
    setFilters({
      search: "",
      location: "",
+     listing_type: "all",
      property_type: "",
      min_price: "",
      max_price: "",
@@ -1572,6 +1660,13 @@ const ListingsPage = () => {
      return newFavorites;
    });
  }, []);
+
+ // Updated listing types to include experiences
+ const listingTypes = [
+   { value: "all", label: "All Types", icon: "🌟" },
+   { value: "homestay", label: "Homestays", icon: "🏠" },
+   { value: "experience", label: "Experiences", icon: "🎯" },
+ ];
 
  const propertyTypes = [
    { value: "", label: "All Property Types", icon: "🏘️" },
@@ -1742,8 +1837,8 @@ const ListingsPage = () => {
                  transition={{ delay: 0.4 }}
                  className="text-xl md:text-2xl text-gray-600 max-w-4xl mx-auto leading-relaxed mb-8"
                >
-                 Search by emotion, upload images, or let AI understand your natural language. 
-                 Experience the future of intelligent travel discovery.
+                 Discover authentic homestays and immersive cultural experiences. 
+                 Search by emotion, upload images, or let AI understand your natural language.
                </motion.p>
 
                {/* AI Features Preview Pills - Home Page Style */}
@@ -1754,9 +1849,9 @@ const ListingsPage = () => {
                  className="flex flex-wrap gap-4 justify-center mb-12"
                >
                  {[
-                   { icon: SparklesIcon, label: "Semantic Search", color: "from-blue-400 to-indigo-500" },
+                   { icon: HomeIcon, label: "Homestays", color: "from-blue-400 to-indigo-500" },
+                   { icon: AcademicCapIcon, label: "Experiences", color: "from-purple-400 to-violet-500" },
                    { icon: HeartIcon, label: "Emotion Detection", color: "from-pink-400 to-rose-500" },
-                   { icon: PhotoIcon, label: "Visual Search", color: "from-purple-400 to-violet-500" },
                    { icon: LightBulbIcon, label: "Smart AI", color: "from-green-400 to-emerald-500" },
                  ].map((feature, index) => (
                    <motion.div
@@ -1790,7 +1885,7 @@ const ListingsPage = () => {
                    <div className="grid grid-cols-1 md:grid-cols-12 gap-6 mb-8">
                      
                      {/* Main Search */}
-                     <div className="md:col-span-5">
+                     <div className="md:col-span-4">
                        <label className="block text-gray-700 font-semibold mb-3 text-sm flex items-center space-x-2">
                          <MagnifyingGlassIcon className="w-4 h-4" />
                          <span>Search Destinations</span>
@@ -1808,7 +1903,7 @@ const ListingsPage = () => {
                      </div>
 
                      {/* Location */}
-                     <div className="md:col-span-4">
+                     <div className="md:col-span-3">
                        <label className="block text-gray-700 font-semibold mb-3 text-sm flex items-center space-x-2">
                          <MapPinIcon className="w-4 h-4" />
                          <span>Location</span>
@@ -1825,8 +1920,30 @@ const ListingsPage = () => {
                        </div>
                      </div>
 
-                     {/* Guests */}
+                     {/* Listing Type */}
                      <div className="md:col-span-3">
+                       <label className="block text-gray-700 font-semibold mb-3 text-sm flex items-center space-x-2">
+                         <SparklesIcon className="w-4 h-4" />
+                         <span>Type</span>
+                       </label>
+                       <div className="relative">
+                         <select
+                           value={filters.listing_type}
+                           onChange={(e) => handleFilterChange("listing_type", e.target.value)}
+                           className="w-full px-4 py-4 bg-white/20 backdrop-blur-sm border border-white/30 rounded-2xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 focus:bg-white/30 transition-all duration-300 text-gray-800 appearance-none text-base"
+                         >
+                           {listingTypes.map((type) => (
+                             <option key={type.value} value={type.value} className="text-gray-900">
+                               {type.icon} {type.label}
+                             </option>
+                           ))}
+                         </select>
+                         <ChevronDownIcon className="absolute right-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none" />
+                       </div>
+                     </div>
+
+                     {/* Guests */}
+                     <div className="md:col-span-2">
                        <label className="block text-gray-700 font-semibold mb-3 text-sm flex items-center space-x-2">
                          <UserGroupIcon className="w-4 h-4" />
                          <span>Guests</span>
@@ -1849,7 +1966,7 @@ const ListingsPage = () => {
                      </div>
                    </div>
 
-                   {/* Weather Integration Section - WITH PREDICT BUTTON */}
+                   {/* Weather Integration Section */}
                    {filters.location && (
                      <motion.div
                        initial={{ opacity: 0, height: 0 }}
@@ -1863,7 +1980,6 @@ const ListingsPage = () => {
                              <span>Weather Intelligence for {filters.location}</span>
                            </h3>
 
-                           {/* BOTH BUTTONS SIDE BY SIDE */}
                            <div className="flex items-center space-x-3">
                              <motion.button
                                type="button"
@@ -1886,7 +2002,6 @@ const ListingsPage = () => {
                                <span className="font-medium">Get Weather</span>
                              </motion.button>
 
-                             {/* PREDICT FOR NEXT WEEK BUTTON */}
                              <motion.button
                                type="button"
                                onClick={fetchWeeklyWeatherPrediction}
@@ -1910,7 +2025,8 @@ const ListingsPage = () => {
                            </div>
                          </div>
 
-                         {/* Current Weather Display - EXACTLY AS REQUESTED */}
+                         {/* Weather display sections remain the same as in original code... */}
+                         {/* Current Weather Display */}
                          {weatherData && (
                            <motion.div
                              initial={{ opacity: 0, y: 20 }}
@@ -1962,7 +2078,7 @@ const ListingsPage = () => {
                                  </div>
                                </div>
 
-                               {/* Recommended Activities - EXACTLY AS REQUESTED */}
+                               {/* Recommended Activities */}
                                <div>
                                  <h4 className="font-bold text-gray-800 mb-3 text-lg flex items-center space-x-1">
                                    <span>🎯</span>
@@ -1999,7 +2115,7 @@ const ListingsPage = () => {
                            </motion.div>
                          )}
 
-                         {/* Weekly Weather Prediction Display - SAME CARD DESIGN */}
+                         {/* Weekly Weather Prediction Display */}
                          {showWeeklyWeather && weeklyWeatherData && (
                            <motion.div
                              initial={{ opacity: 0, y: 20 }}
@@ -2157,7 +2273,7 @@ const ListingsPage = () => {
                          whileTap={{ scale: 0.98 }}
                        >
                          <MagnifyingGlassIcon className="w-6 h-6" />
-                         <span>Discover Villages</span>
+                         <span>Discover Places</span>
                        </motion.button>
                      </div>
                    </div>
@@ -2165,7 +2281,7 @@ const ListingsPage = () => {
                </form>
              </motion.div>
 
-             {/* Stats/Trust Indicators - Home Page Style */}
+             {/* Stats/Trust Indicators */}
              <motion.div
                initial={{ opacity: 0, y: 30 }}
                animate={{ opacity: 1, y: 0 }}
@@ -2219,7 +2335,7 @@ const ListingsPage = () => {
            </motion.div>
          </section>
 
-         {/* Weather Modal - keeping your existing one but with home page colors */}
+         {/* Weather Modal */}
          <AnimatePresence>
            {showWeatherModal && weatherData && (
              <div
@@ -2298,7 +2414,7 @@ const ListingsPage = () => {
            )}
          </AnimatePresence>
 
-         {/* Advanced Search Modal - FIXED UI WITH PROPER WHITE BACKGROUND */}
+         {/* Advanced Search Modal */}
          <AnimatePresence>
            {showAdvancedSearch && (
              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -2343,7 +2459,23 @@ const ListingsPage = () => {
                className="bg-white border-b border-gray-100 shadow-lg relative z-20"
              >
                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
+                   
+                   <div>
+                     <label className="block text-sm font-bold text-gray-700 mb-3">🌟 Listing Type</label>
+                     <select
+                       value={filters.listing_type}
+                       onChange={(e) => handleFilterChange("listing_type", e.target.value)}
+                       className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300"
+                     >
+                       {listingTypes.map((type) => (
+                         <option key={type.value} value={type.value}>
+                           {type.icon} {type.label}
+                         </option>
+                       ))}
+                     </select>
+                   </div>
+
                    <div>
                      <label className="block text-sm font-bold text-gray-700 mb-3">🏠 Property Type</label>
                      <select
@@ -2677,117 +2809,117 @@ const ListingsPage = () => {
                  )}
                </div>
 
-              {/* Enhanced Pagination */}
-              {pagination.total_pages > 1 &&
-                !advancedResults.length &&
-                !showWeatherSearch && (
-                  <div className="mt-16 flex justify-center">
-                    <div className="flex items-center space-x-3">
-                      <motion.button
-                        onClick={() =>
-                          setPagination((prev) => ({
-                            ...prev,
-                            page: prev.page - 1,
-                          }))
-                        }
-                        disabled={pagination.page === 1}
-                        className="px-6 py-3 text-sm border border-gray-300 rounded-xl hover:bg-gray-50 disabled:opacity-50 font-medium transition-all duration-300"
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                      >
-                        ← Previous
-                      </motion.button>
+               {/* Enhanced Pagination */}
+               {pagination.total_pages > 1 &&
+                 !advancedResults.length &&
+                 !showWeatherSearch && (
+                   <div className="mt-16 flex justify-center">
+                     <div className="flex items-center space-x-3">
+                       <motion.button
+                         onClick={() =>
+                           setPagination((prev) => ({
+                             ...prev,
+                             page: prev.page - 1,
+                           }))
+                         }
+                         disabled={pagination.page === 1}
+                         className="px-6 py-3 text-sm border border-gray-300 rounded-xl hover:bg-gray-50 disabled:opacity-50 font-medium transition-all duration-300"
+                         whileHover={{ scale: 1.05 }}
+                         whileTap={{ scale: 0.95 }}
+                       >
+                         ← Previous
+                       </motion.button>
 
-                      {[...Array(Math.min(pagination.total_pages, 5))].map(
-                        (_, i) => {
-                          const pageNum =
-                            pagination.page <= 3
-                              ? i + 1
-                              : pagination.page - 2 + i;
-                          if (pageNum > pagination.total_pages) return null;
+                       {[...Array(Math.min(pagination.total_pages, 5))].map(
+                         (_, i) => {
+                           const pageNum =
+                             pagination.page <= 3
+                               ? i + 1
+                               : pagination.page - 2 + i;
+                           if (pageNum > pagination.total_pages) return null;
 
-                          return (
-                            <motion.button
-                              key={pageNum}
-                              onClick={() =>
-                                setPagination((prev) => ({
-                                  ...prev,
-                                  page: pageNum,
-                                }))
-                              }
-                              className={`px-4 py-3 text-sm rounded-xl font-medium transition-all duration-300 ${
-                                pageNum === pagination.page
-                                  ? "bg-gradient-to-r from-green-500 to-blue-600 text-white shadow-lg"
-                                  : "border border-gray-300 hover:bg-gray-50 text-gray-700"
-                              }`}
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                            >
-                              {pageNum}
-                            </motion.button>
-                          );
-                        }
-                      )}
+                           return (
+                             <motion.button
+                               key={pageNum}
+                               onClick={() =>
+                                 setPagination((prev) => ({
+                                   ...prev,
+                                   page: pageNum,
+                                 }))
+                               }
+                               className={`px-4 py-3 text-sm rounded-xl font-medium transition-all duration-300 ${
+                                 pageNum === pagination.page
+                                   ? "bg-gradient-to-r from-green-500 to-blue-600 text-white shadow-lg"
+                                   : "border border-gray-300 hover:bg-gray-50 text-gray-700"
+                               }`}
+                               whileHover={{ scale: 1.05 }}
+                               whileTap={{ scale: 0.95 }}
+                             >
+                               {pageNum}
+                             </motion.button>
+                           );
+                         }
+                       )}
 
-                      <motion.button
-                        onClick={() =>
-                          setPagination((prev) => ({
-                            ...prev,
-                            page: prev.page + 1,
-                          }))
-                        }
-                        disabled={pagination.page === pagination.total_pages}
-                        className="px-6 py-3 text-sm border border-gray-300 rounded-xl hover:bg-gray-50 disabled:opacity-50 font-medium transition-all duration-300"
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                      >
-                        Next →
-                      </motion.button>
-                    </div>
-                  </div>
-                )}
-            </>
-          ) : (
-            <div className="text-center py-20">
-              <motion.div
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="max-w-md mx-auto"
-              >
-                <div className="w-32 h-32 bg-gradient-to-br from-gray-200 to-gray-300 rounded-full flex items-center justify-center mx-auto mb-8">
-                  <MagnifyingGlassIcon className="w-16 h-16 text-gray-400" />
-                </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-4">
-                  No villages found
-                </h3>
-                <p className="text-gray-600 mb-8 leading-relaxed">
-                  We couldn't find any properties matching your criteria. Try
-                  adjusting your search or filters.
-                </p>
-                <motion.button
-                  onClick={clearFilters}
-                  className="bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white px-8 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  🔄 Clear All Filters
-                </motion.button>
-              </motion.div>
-            </div>
-          )}
-        </div>
-      </div>
-      
-      <MapView 
-        listings={displayListings}
-        isOpen={showMapView}
-        onClose={() => setShowMapView(false)}
-        filters={filters}
-        searchMetadata={searchMetadata}
-      />
-    </AppLayout>
-  </Providers>
-);
+                       <motion.button
+                         onClick={() =>
+                           setPagination((prev) => ({
+                             ...prev,
+                             page: prev.page + 1,
+                           }))
+                         }
+                         disabled={pagination.page === pagination.total_pages}
+                         className="px-6 py-3 text-sm border border-gray-300 rounded-xl hover:bg-gray-50 disabled:opacity-50 font-medium transition-all duration-300"
+                         whileHover={{ scale: 1.05 }}
+                         whileTap={{ scale: 0.95 }}
+                       >
+                         Next →
+                       </motion.button>
+                     </div>
+                   </div>
+                 )}
+             </>
+           ) : (
+             <div className="text-center py-20">
+               <motion.div
+                 initial={{ opacity: 0, y: 30 }}
+                 animate={{ opacity: 1, y: 0 }}
+                 className="max-w-md mx-auto"
+               >
+                 <div className="w-32 h-32 bg-gradient-to-br from-gray-200 to-gray-300 rounded-full flex items-center justify-center mx-auto mb-8">
+                   <MagnifyingGlassIcon className="w-16 h-16 text-gray-400" />
+                 </div>
+                 <h3 className="text-2xl font-bold text-gray-900 mb-4">
+                   No places found
+                 </h3>
+                 <p className="text-gray-600 mb-8 leading-relaxed">
+                   We couldn't find any properties matching your criteria. Try
+                   adjusting your search or filters.
+                 </p>
+                 <motion.button
+                   onClick={clearFilters}
+                   className="bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white px-8 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
+                   whileHover={{ scale: 1.05 }}
+                   whileTap={{ scale: 0.95 }}
+                 >
+                   🔄 Clear All Filters
+                 </motion.button>
+               </motion.div>
+             </div>
+           )}
+         </div>
+       </div>
+       
+       <MapView 
+         listings={displayListings}
+         isOpen={showMapView}
+         onClose={() => setShowMapView(false)}
+         filters={filters}
+         searchMetadata={searchMetadata}
+       />
+     </AppLayout>
+   </Providers>
+ );
 };
 
 export default ListingsPage;

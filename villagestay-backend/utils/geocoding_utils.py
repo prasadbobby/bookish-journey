@@ -1,168 +1,38 @@
+import googlemaps
 import requests
-import os
 from config import Config
+import logging
 
-def get_coordinates_from_location(location):
+# Initialize Google Maps client
+gmaps = googlemaps.Client(key=Config.GOOGLE_PLACES_API_KEY)
+
+def get_coordinates_from_location(location_text):
     """
-    Get latitude and longitude coordinates from a location string using Google Maps Geocoding API
+    Get coordinates from location text using Google Geocoding API
     """
     try:
-        if not Config.GOOGLE_MAPS_API_KEY:
-            raise Exception("Google Maps API key not configured")
+        # Use Google Maps Geocoding API
+        geocode_result = gmaps.geocode(location_text)
         
-        # Clean and format the location
-        location = location.strip()
-        if not location:
-            raise Exception("Location is required")
+        if not geocode_result:
+            raise Exception(f"No results found for location: {location_text}")
         
-        # Google Maps Geocoding API endpoint
-        url = "https://maps.googleapis.com/maps/api/geocode/json"
+        # Get the first result
+        result = geocode_result[0]
+        geometry = result['geometry']
+        location = geometry['location']
         
-        params = {
-            'address': location,
-            'key': Config.GOOGLE_MAPS_API_KEY,
-            'region': 'in',  # Bias results towards India
-            'language': 'en'
+        return {
+            'lat': location['lat'],
+            'lng': location['lng'],
+            'formatted_address': result['formatted_address'],
+            'place_id': result['place_id'],
+            'types': result.get('types', [])
         }
         
-        print(f"🌍 Geocoding location: {location}")
-        
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        
-        data = response.json()
-        
-        if data['status'] == 'OK' and len(data['results']) > 0:
-            result = data['results'][0]
-            
-            # Extract coordinates
-            geometry = result['geometry']
-            lat = geometry['location']['lat']
-            lng = geometry['location']['lng']
-            
-            # Get formatted address
-            formatted_address = result['formatted_address']
-            
-            print(f"✅ Geocoding successful: {formatted_address} -> ({lat}, {lng})")
-            
-            return {
-                'lat': lat,
-                'lng': lng,
-                'formatted_address': formatted_address,
-                'place_id': result.get('place_id'),
-                'types': result.get('types', [])
-            }
-        
-        elif data['status'] == 'ZERO_RESULTS':
-            print(f"❌ No results found for location: {location}")
-            raise Exception(f"Location '{location}' not found. Please provide a more specific address.")
-        
-        elif data['status'] == 'OVER_QUERY_LIMIT':
-            print(f"❌ Google Maps API quota exceeded")
-            raise Exception("Geocoding service temporarily unavailable. Please try again later.")
-        
-        elif data['status'] == 'REQUEST_DENIED':
-            print(f"❌ Google Maps API request denied")
-            raise Exception("Geocoding service access denied. Please contact support.")
-        
-        else:
-            print(f"❌ Geocoding failed with status: {data['status']}")
-            raise Exception(f"Failed to geocode location: {data.get('error_message', 'Unknown error')}")
-    
-    except requests.exceptions.RequestException as e:
-        print(f"❌ Network error during geocoding: {e}")
-        raise Exception("Network error while fetching location coordinates. Please check your internet connection.")
-    
     except Exception as e:
-        print(f"❌ Geocoding error: {e}")
-        raise Exception(str(e))
-
-def get_location_suggestions(query, limit=5):
-    """
-    Get location suggestions using Google Places Autocomplete API
-    """
-    try:
-        if not Config.GOOGLE_MAPS_API_KEY:
-            raise Exception("Google Maps API key not configured")
-        
-        if not query or len(query.strip()) < 2:
-            return []
-        
-        url = "https://maps.googleapis.com/maps/api/place/autocomplete/json"
-        
-        params = {
-            'input': query.strip(),
-            'key': Config.GOOGLE_MAPS_API_KEY,
-            'types': '(regions)',
-            'components': 'country:in',  # Restrict to India
-            'language': 'en'
-        }
-        
-        print(f"🔍 Getting location suggestions for: {query}")
-        
-        response = requests.get(url, params=params, timeout=5)
-        response.raise_for_status()
-        
-        data = response.json()
-        
-        suggestions = []
-        if data['status'] == 'OK':
-            for prediction in data.get('predictions', [])[:limit]:
-                suggestion = {
-                    'place_id': prediction['place_id'],
-                    'description': prediction['description'],
-                    'main_text': prediction['structured_formatting'].get('main_text', ''),
-                    'secondary_text': prediction['structured_formatting'].get('secondary_text', ''),
-                    'types': prediction.get('types', [])
-                }
-                suggestions.append(suggestion)
-        
-        print(f"✅ Found {len(suggestions)} location suggestions")
-        return suggestions
-        
-    except Exception as e:
-        print(f"❌ Location suggestions error: {e}")
-        return []
-
-def get_place_details(place_id):
-    """
-    Get detailed information about a place using Google Places Details API
-    """
-    try:
-        if not Config.GOOGLE_MAPS_API_KEY:
-            raise Exception("Google Maps API key not configured")
-        
-        url = "https://maps.googleapis.com/maps/api/place/details/json"
-        
-        params = {
-            'place_id': place_id,
-            'key': Config.GOOGLE_MAPS_API_KEY,
-            'fields': 'formatted_address,geometry,name,types,address_components'
-        }
-        
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        
-        data = response.json()
-        
-        if data['status'] == 'OK' and 'result' in data:
-            result = data['result']
-            
-            return {
-                'formatted_address': result.get('formatted_address'),
-                'name': result.get('name'),
-                'lat': result['geometry']['location']['lat'],
-                'lng': result['geometry']['location']['lng'],
-                'types': result.get('types', []),
-                'address_components': result.get('address_components', [])
-            }
-        
-        else:
-            raise Exception("Could not get place details")
-            
-    except Exception as e:
-        print(f"❌ Place details error: {e}")
-        raise Exception(str(e))
+        logging.error(f"Geocoding error for '{location_text}': {str(e)}")
+        raise Exception(f"Failed to geocode location: {str(e)}")
 
 def validate_coordinates(lat, lng):
     """
@@ -172,16 +42,105 @@ def validate_coordinates(lat, lng):
         lat = float(lat)
         lng = float(lng)
         
-        # Check if coordinates are within valid range
-        if not (-90 <= lat <= 90):
-            return False
-        if not (-180 <= lng <= 180):
-            return False
-        
-        # Check if coordinates are not (0, 0) which is in the ocean
-        if lat == 0 and lng == 0:
-            return False
-        
-        return True
+        if -90 <= lat <= 90 and -180 <= lng <= 180:
+            return True
+        return False
     except (ValueError, TypeError):
         return False
+
+def get_location_suggestions(query, limit=6):
+    """
+    Get location suggestions using Google Places Autocomplete API
+    """
+    try:
+        # Use Google Places Autocomplete
+        predictions = gmaps.places_autocomplete(
+            input_text=query,
+            types=['(regions)'],  # Focus on regions, cities, etc.
+            components={'country': 'in'},  # Restrict to India
+            language='en'
+        )
+        
+        suggestions = []
+        for prediction in predictions[:limit]:
+            suggestion = {
+                'place_id': prediction['place_id'],
+                'description': prediction['description'],
+                'main_text': prediction['structured_formatting']['main_text'],
+                'secondary_text': prediction['structured_formatting'].get('secondary_text', ''),
+                'types': prediction.get('types', [])
+            }
+            suggestions.append(suggestion)
+        
+        return suggestions
+        
+    except Exception as e:
+        logging.error(f"Location suggestions error for '{query}': {str(e)}")
+        raise Exception(f"Failed to get location suggestions: {str(e)}")
+
+def get_place_details(place_id):
+    """
+    Get detailed place information from place_id
+    """
+    try:
+        # Get place details with correct field names
+        place_result = gmaps.place(
+            place_id=place_id,
+            fields=[
+                'name', 
+                'formatted_address', 
+                'geometry/location',
+                'geometry/viewport', 
+                'type',  # Changed from 'types' to 'type'
+                'address_component',  # Changed from 'address_components' to 'address_component'
+                'place_id'
+            ]
+        )
+        
+        if not place_result or 'result' not in place_result:
+            raise Exception(f"No details found for place_id: {place_id}")
+        
+        result = place_result['result']
+        geometry = result.get('geometry', {})
+        location = geometry.get('location', {})
+        
+        # Handle the case where location might be empty
+        if not location:
+            raise Exception(f"No location data found for place_id: {place_id}")
+        
+        return {
+            'place_id': place_id,
+            'name': result.get('name', ''),
+            'formatted_address': result.get('formatted_address', ''),
+            'lat': location.get('lat', 0),
+            'lng': location.get('lng', 0),
+            'types': result.get('type', []),  # Changed from 'types' to 'type'
+            'address_components': result.get('address_component', [])  # Changed field name
+        }
+        
+    except Exception as e:
+        logging.error(f"Place details error for place_id '{place_id}': {str(e)}")
+        raise Exception(f"Failed to get place details: {str(e)}")
+
+def reverse_geocode(lat, lng):
+    """
+    Get address from coordinates using reverse geocoding
+    """
+    try:
+        reverse_geocode_result = gmaps.reverse_geocode((lat, lng))
+        
+        if not reverse_geocode_result:
+            raise Exception(f"No address found for coordinates: {lat}, {lng}")
+        
+        result = reverse_geocode_result[0]
+        
+        return {
+            'formatted_address': result['formatted_address'],
+            'place_id': result['place_id'],
+            'types': result.get('types', []),
+            'address_components': result.get('address_components', [])
+        }
+        
+    except Exception as e:
+        logging.error(f"Reverse geocoding error for {lat}, {lng}: {str(e)}")
+        raise Exception(f"Failed to reverse geocode: {str(e)}")

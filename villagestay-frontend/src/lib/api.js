@@ -96,6 +96,7 @@ export const getImagePlaceholder = (width = 400, height = 240, title = 'Village 
   // Return a simple placeholder image path
   return '/images/placeholder-village.jpg';
 };
+
 // Auth API
 export const authAPI = {
   register: (userData) => api.post('/api/auth/register', userData),
@@ -123,18 +124,108 @@ export const reviewsAPI = {
 
 // Listings API
 export const listingsAPI = {
+  // Smart create method that routes to the correct endpoint
+  create: (data) => {
+    console.log('🔥 API: create called with data:', data);
+    console.log('🔥 API: listing_category:', data.listing_category);
+    
+    if (data.listing_category === 'experience') {
+      // Use dedicated experiences endpoint
+      console.log('🎭 Routing to experiences endpoint');
+      return api.post('/api/experiences/', data);
+    } else {
+      // Use listings endpoint for homestays
+      console.log('🏠 Routing to listings endpoint');
+      return api.post('/api/listings/create', data);
+    }
+  },
+
+  // Get all listings (homestays only - for backward compatibility)
   getAll: (params) => api.get('/api/listings/', { params }),
-  getById: (id) => api.get(`/api/listings/${id}`),
-  create: (data) => api.post('/api/listings/', data),
-  update: (id, data) => api.put(`/api/listings/${id}`, data),
-  delete: (id) => api.delete(`/api/listings/${id}`),
-  search: (params) => api.get('/api/listings/search', { params }),
-  checkAvailability: (id, params) => api.get(`/api/listings/${id}/availability`, { params }),
-  updateAvailability: (id, data) => api.post(`/api/listings/${id}/availability`, data),
+  
+  // Get all experiences
+  getAllExperiences: (params) => api.get('/api/experiences/', { params }),
+  
+  // Get individual listing/experience by ID - smart routing
+  getById: async (id) => {
+    console.log('🔍 Getting listing/experience by ID:', id);
+    
+    // Try to get as homestay first
+    try {
+      const response = await api.get(`/api/listings/${id}`);
+      console.log('✅ Found as homestay');
+      return response;
+    } catch (homestayError) {
+      console.log('❌ Not found as homestay, trying experience...');
+      
+      // If not found as homestay, try as experience
+      try {
+        const response = await api.get(`/api/experiences/${id}`);
+        console.log('✅ Found as experience');
+        return response;
+      } catch (experienceError) {
+        console.log('❌ Not found as experience either');
+        // If neither works, throw the original error
+        throw homestayError;
+      }
+    }
+  },
+
+  // Get experience by ID specifically
+  getExperienceById: (id) => api.get(`/api/experiences/${id}`),
+  
+  // Update method - smart routing based on type
+  update: async (id, data) => {
+    console.log('🔄 Updating listing/experience:', id, data.listing_category || data.type);
+    
+    if (data.listing_category === 'experience' || data.type === 'experience') {
+      console.log('🎭 Updating as experience');
+      return api.put(`/api/experiences/${id}`, data);
+    } else {
+      console.log('🏠 Updating as homestay');
+      return api.put(`/api/listings/${id}`, data);
+    }
+  },
+
+  // Delete method - smart routing
+  delete: async (id) => {
+    console.log('🗑️ Deleting listing/experience:', id);
+    
+    // Try to delete as homestay first
+    try {
+      const response = await api.delete(`/api/listings/${id}`);
+      console.log('✅ Deleted as homestay');
+      return response;
+    } catch (homestayError) {
+      console.log('❌ Failed to delete as homestay, trying experience...');
+      
+      // If not found as homestay, try as experience
+      try {
+        const response = await api.delete(`/api/experiences/${id}`);
+        console.log('✅ Deleted as experience');
+        return response;
+      } catch (experienceError) {
+        console.log('❌ Failed to delete as experience');
+        // If neither works, throw the original error
+        throw homestayError;
+      }
+    }
+  },
+
+  // Host management methods
   getHostListings: (hostId, params) => api.get(`/api/listings/host/${hostId}`, { params }),
+  getHostAllListings: (hostId, params) => api.get(`/api/listings/host/${hostId}/all`, { params }),
   getHostStats: (hostId) => api.get(`/api/listings/host/${hostId}/stats`),
 
-   getLocationSuggestions: async (params) => {
+  // Search methods
+  search: (params) => api.get('/api/listings/search', { params }),
+  
+  // Availability methods (homestays only)
+  checkAvailability: (id, params) => api.get(`/api/listings/${id}/availability`, { params }),
+  updateAvailability: (id, data) => api.post(`/api/listings/${id}/availability`, data),
+
+  // Location services
+  getLocationSuggestions: async (params) => {
     try {
       const response = await api.get('/api/listings/location-suggestions', { params });
       return response;
@@ -215,29 +306,194 @@ export const listingsAPI = {
     }
   },
 
+  // Experience-specific methods
+  createExperience: (data) => api.post('/api/experiences/', data),
+  
+  // Unified search across both homestays and experiences
+  searchAll: async (params) => {
+    try {
+      // Get both homestays and experiences in parallel
+      const [homestaysResponse, experiencesResponse] = await Promise.allSettled([
+        api.get('/api/listings/search', { params }),
+        api.get('/api/experiences/', { params })
+      ]);
 
+      const homestays = homestaysResponse.status === 'fulfilled' 
+        ? homestaysResponse.value.data.listings || []
+        : [];
+        
+      const experiences = experiencesResponse.status === 'fulfilled'
+        ? experiencesResponse.value.data.experiences || []
+        : [];
+
+      // Add type indicator to each item
+      const formattedHomestays = homestays.map(item => ({
+        ...item,
+        listing_category: 'homestay',
+        type: 'homestay'
+      }));
+
+      const formattedExperiences = experiences.map(item => ({
+        ...item,
+        listing_category: 'experience',
+        type: 'experience'
+      }));
+
+      return {
+        listings: [...formattedHomestays, ...formattedExperiences],
+        homestays: formattedHomestays,
+        experiences: formattedExperiences,
+        total_count: formattedHomestays.length + formattedExperiences.length
+      };
+    } catch (error) {
+      console.error('Unified search failed:', error);
+      throw error;
+    }
+  },
+
+  // Get trending/featured items
+  getFeatured: async () => {
+    try {
+      const [homestaysResponse, experiencesResponse] = await Promise.allSettled([
+        api.get('/api/listings/', { params: { limit: 6, featured: true } }),
+        api.get('/api/experiences/', { params: { limit: 6, featured: true } })
+      ]);
+
+      const homestays = homestaysResponse.status === 'fulfilled'
+        ? homestaysResponse.value.data.listings || []
+        : [];
+        
+      const experiences = experiencesResponse.status === 'fulfilled'
+        ? experiencesResponse.value.data.experiences || []
+        : [];
+
+      return {
+        homestays: homestays.map(item => ({ ...item, listing_category: 'homestay' })),
+        experiences: experiences.map(item => ({ ...item, listing_category: 'experience' }))
+      };
+    } catch (error) {
+      console.error('Failed to get featured items:', error);
+      throw error;
+    }
+  },
+
+  // Get categories for experiences
+  getExperienceCategories: async () => {
+    try {
+      // This could be a dedicated endpoint or computed from existing data
+      return [
+        { value: 'cultural', label: 'Cultural', icon: '🎭', count: 0 },
+        { value: 'culinary', label: 'Culinary', icon: '🍛', count: 0 },
+        { value: 'farming', label: 'Farming', icon: '🌾', count: 0 },
+        { value: 'craft', label: 'Handicrafts', icon: '🎨', count: 0 },
+        { value: 'spiritual', label: 'Spiritual', icon: '🙏', count: 0 },
+        { value: 'adventure', label: 'Adventure', icon: '🏔️', count: 0 },
+        { value: 'wellness', label: 'Wellness', icon: '🧘', count: 0 },
+        { value: 'nature', label: 'Nature', icon: '🌳', count: 0 }
+      ];
+    } catch (error) {
+      console.error('Failed to get experience categories:', error);
+      throw error;
+    }
+  },
+
+  // Analytics methods
+  getAnalytics: async (hostId, type = 'all') => {
+    try {
+      const params = { type }; // 'all', 'homestays', 'experiences'
+      const response = await api.get(`/api/listings/host/${hostId}/analytics`, { params });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get analytics:', error);
+      throw error;
+    }
+  }
 };
 
-// Bookings API
+// Add these to your API object as well
+export const experiencesAPI = {
+  // Direct experience operations
+  getAll: (params) => api.get('/api/experiences/', { params }),
+  getById: (id) => api.get(`/api/experiences/${id}`),
+  create: (data) => api.post('/api/experiences/', data),
+  update: (id, data) => api.put(`/api/experiences/${id}`, data),
+  delete: (id) => api.delete(`/api/experiences/${id}`),
+  
+  // Experience-specific searches
+  searchByCategory: (category, params) => api.get('/api/experiences/', { 
+    params: { ...params, category } 
+  }),
+  searchByDifficulty: (difficulty, params) => api.get('/api/experiences/', { 
+    params: { ...params, difficulty } 
+  }),
+  searchByDuration: (minHours, maxHours, params) => api.get('/api/experiences/', { 
+    params: { ...params, min_duration: minHours, max_duration: maxHours } 
+  }),
+};
+
+// Universal helper for handling both types
+export const universalAPI = {
+  // Get any listing by ID (homestay or experience)
+  getAnyById: (id) => listingsAPI.getById(id),
+  
+  // Search across both types with unified results
+  searchEverything: (query, filters = {}) => {
+    return listingsAPI.searchAll({ q: query, ...filters });
+  },
+  
+  // Get popular items of both types
+  getPopular: () => listingsAPI.getFeatured(),
+  
+  // Get recommendations based on user preferences
+  getRecommendations: async (userId, preferences = {}) => {
+    try {
+      const response = await api.post('/api/recommendations/', {
+        user_id: userId,
+        preferences,
+        include_homestays: true,
+        include_experiences: true
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get recommendations:', error);
+      throw error;
+    }
+  }
+};
+
+// Bookings API - FIXED
 export const bookingsAPI = {
   create: (data) => api.post('/api/bookings/', data),
   getAll: (params) => api.get('/api/bookings/', { params }),
   getById: (id) => api.get(`/api/bookings/${id}`),
+  
+  // Fixed payment completion methods - using 'api' instead of 'apiClient'
   completePayment: async (bookingId, paymentData) => {
-  const response = await api.post(`/api/bookings/${bookingId}/payment`, paymentData);
-  return response.data;
-},
+    const response = await api.post(`/api/bookings/${bookingId}/complete-payment`, paymentData);
+    return response.data;
+  },
+  
+  // Alternative payment confirmation methods in case your backend uses different endpoints
+  confirmPayment: async (bookingId, paymentData) => {
+    const response = await api.post(`/api/bookings/${bookingId}/confirm-payment`, paymentData);
+    return response.data;
+  },
+  
+  confirm: async (bookingId, paymentData) => {
+    const response = await api.post(`/api/bookings/${bookingId}/confirm`, paymentData);
+    return response.data;
+  },
+  
+  // Other booking methods
   cancel: (id, data) => api.post(`/api/bookings/${id}/cancel`, data),
   complete: (id) => api.post(`/api/bookings/${id}/complete`),
 };
 
 // AI Features API
 export const aiAPI = {
-
- generateVillageStory: (data) => api.post('/api/ai-features/generate-village-story', data),
+  generateVillageStory: (data) => api.post('/api/ai-features/generate-village-story', data),
   getStoryStatus: (id) => api.get(`/api/ai-features/village-story-status/${id}`),
   getListingVideos: (listingId) => api.get(`/api/ai-features/listing-videos/${listingId}`),
-  
 
   getWeatherRecommendations: async (locationData) => {
     try {
@@ -268,6 +524,7 @@ export const aiAPI = {
       throw error;
     }
   },
+  
   // Voice to Listing - use the file upload instance
   voiceToListing: (data) => apiWithFiles.post('/api/ai-features/voice-to-listing', data),
   createListingFromVoice: (data) => api.post('/api/ai-features/create-listing-from-voice', data),
@@ -378,11 +635,28 @@ export const impactAPI = {
 // Admin API
 export const adminAPI = {
   getDashboard: (params) => api.get('/api/admin/dashboard', { params }),
+  
+  // Users management
   getUsers: (params) => api.get('/api/admin/users', { params }),
+  
+  // Listings management (handles both homestays and experiences)
   getListings: (params) => api.get('/api/admin/listings', { params }),
-  approveListing: (id, data) => api.post(`/api/admin/listings/${id}/approve`, data),
-  rejectListing: (id, data) => api.post(`/api/admin/listings/${id}/reject`, data),
+  
+  // Listing approval/rejection (smart routing)
+  approveListing: async (listingId, data) => {
+    // Include listing type in the request data
+    return api.post(`/api/admin/listings/${listingId}/approve`, data);
+  },
+  
+  rejectListing: async (listingId, data) => {
+    // Include listing type in the request data
+    return api.post(`/api/admin/listings/${listingId}/reject`, data);
+  },
+  
+  // Bookings management
   getBookings: (params) => api.get('/api/admin/bookings', { params }),
+  
+  // Analytics
   getAnalytics: (params) => api.get('/api/admin/analytics', { params }),
   // User management
   suspendUser: (userId) => api.post(`/api/admin/users/${userId}/suspend`),
@@ -477,36 +751,9 @@ export const streamingUtils = {
   }
 };
 
-
 // Add to src/lib/api.js
-
 export const callsAPI = {
   initiateBookingCall: () => api.post('/api/bookings/initiate-call'),
 };
 
-// Then in the dashboard, replace the triggerBookingCall function with:
-const triggerBookingCall = async () => {
-  if (!user?.phone) {
-    toast.error('Phone number not found. Please update your profile.');
-    return;
-  }
-
-  setCallingInProgress(true);
-  
-  try {
-    // Optional: Log call in backend
-    await callsAPI.initiateBookingCall();
-    
-    // Show initial success message
-    toast.success(`🔄 Initiating call to ${user.phone}... Maya will call you in 10-15 seconds!`, {
-      duration: 5000
-    });
-
-    // Rest of the ElevenLabs API call remains the same...
-  } catch (error) {
-    toast.error(`❌ Failed to initiate call: ${error.message}`);
-  } finally {
-    setCallingInProgress(false);
-  }
-};
 export default api;
