@@ -118,32 +118,58 @@ def get_google_language_code(language):
     }
     return mapping.get(language, "hi-IN")
 
-def enhance_listing_with_gemini(transcribed_text, language):
-    """Use Gemini API to enhance transcribed text into professional listing"""
+def enhance_listing_with_gemini(transcribed_text, language, listing_category="homestay"):
+    """Use Gemini API to enhance transcribed text into professional listing based on category"""
     try:
         from utils.ai_utils import call_gemini_api
         
-        prompt = f"""
-        Convert this voice description into a professional rural homestay listing:
-        
-        Voice input: "{transcribed_text}"
-        Language: {language}
-        
-        Create a JSON response with:
-        {{
-            "title": "Attractive 5-8 word title",
-            "description": "Professional 150-200 word description highlighting rural experience", 
-            "amenities": ["Home-cooked meals", "Wi-Fi", "Local guide", "Traditional activities", "Organic farming", "Cultural experiences"],
-            "property_type": "homestay/farmstay/village_house/eco_lodge",
-            "pricing_suggestion": "₹2000-3000",
-            "house_rules": ["Respect local customs", "No smoking indoors", "Maintain cleanliness"],
-            "unique_features": ["Traditional architecture", "Organic farming", "Cultural immersion"],
-            "sustainability_features": ["Organic farming", "Local sourcing", "Traditional cooking"],
-            "max_guests": 4
-        }}
-        
-        Respond with valid JSON only.
-        """
+        if listing_category == "homestay":
+            prompt = f"""
+            Convert this voice description into a professional rural homestay listing:
+            
+            Voice input: "{transcribed_text}"
+            Language: {language}
+            
+            Create a JSON response with:
+            {{
+                "title": "Attractive 5-8 word title for homestay",
+                "description": "Professional 150-200 word description highlighting rural homestay experience", 
+                "amenities": ["Home-cooked meals", "Wi-Fi", "Local guide", "Traditional activities", "Organic farming", "Cultural experiences"],
+               "property_type": "homestay/farmstay/village_house/eco_lodge",
+               "pricing_suggestion": "₹2000-3000",
+               "house_rules": ["Respect local customs", "No smoking indoors", "Maintain cleanliness"],
+               "unique_features": ["Traditional architecture", "Organic farming", "Cultural immersion"],
+               "sustainability_features": ["Organic farming", "Local sourcing", "Traditional cooking"],
+               "max_guests": 4,
+               "location": "Extract location if mentioned"
+           }}
+           
+           Respond with valid JSON only.
+           """
+        else:  # experience
+            prompt = f"""
+            Convert this voice description into a professional cultural experience listing:
+            
+            Voice input: "{transcribed_text}"
+            Language: {language}
+            
+            Create a JSON response with:
+            {{
+                "title": "Attractive 5-8 word title for experience",
+                "description": "Professional 150-200 word description highlighting unique cultural experience", 
+                "inclusions": ["All materials", "Light refreshments", "Professional guide", "Take-home items", "Certificate"],
+                "category": "cultural/culinary/farming/craft/spiritual/adventure",
+                "pricing_suggestion": "₹500-1000",
+                "requirements": ["No prior experience needed", "Comfortable clothing", "Open mind"],
+                "unique_features": ["Traditional techniques", "Cultural significance", "Hands-on learning"],
+                "duration": 2,
+                "max_participants": 8,
+                "difficulty_level": "easy",
+                "location": "Extract location if mentioned"
+            }}
+            
+            Respond with valid JSON only.
+            """
         
         response = call_gemini_api(prompt)
         

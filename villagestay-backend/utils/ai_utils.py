@@ -128,36 +128,59 @@ def transcribe_audio_enhanced(audio_data, language):
         print(f"❌ Google Speech transcription failed: {str(e)}")
         raise Exception(f"Real audio transcription failed: {str(e)}")
 
-def generate_smart_pricing(listing_data, language):
-    """Generate intelligent pricing suggestions"""
+def generate_smart_pricing(listing_data, language, listing_category="homestay"):
+    """Generate intelligent pricing suggestions based on category"""
     
     try:
-        # Extract pricing from listing if available
-        pricing_text = listing_data.get('pricing_suggestion', '₹2000')
-        
-        # Try to extract numeric value
-        import re
-        price_match = re.search(r'(\d+)', pricing_text.replace(',', ''))
-        base_price = int(price_match.group(1)) if price_match else 2000
-        
-        # Ensure reasonable pricing for rural India
-        if base_price < 1000:
-            base_price = 1500
-        elif base_price > 5000:
-            base_price = 3000
+        if listing_category == "homestay":
+            # Extract pricing from listing if available
+            pricing_text = listing_data.get('pricing_suggestion', '₹2000')
             
-        return {
-            "base_price_per_night": base_price,
-            "peak_season_multiplier": 1.3,
-            "off_season_discount": 0.8,
-            "weekly_stay_discount": 0.9,
-            "monthly_stay_discount": 0.8,
-            "pricing_rationale": f"Based on rural homestay standards and amenities. Property type: {listing_data.get('property_type', 'homestay')}"
-        }
+            # Try to extract numeric value
+            import re
+            price_match = re.search(r'(\d+)', pricing_text.replace(',', ''))
+            base_price = int(price_match.group(1)) if price_match else 2000
+            
+            # Ensure reasonable pricing for rural India homestays
+            if base_price < 1000:
+                base_price = 1500
+            elif base_price > 5000:
+                base_price = 3000
+                
+            return {
+                "base_price_per_night": base_price,
+                "peak_season_multiplier": 1.3,
+                "off_season_discount": 0.8,
+                "weekly_stay_discount": 0.9,
+                "monthly_stay_discount": 0.8,
+                "pricing_rationale": f"Based on rural homestay standards and amenities. Property type: {listing_data.get('property_type', 'homestay')}"
+            }
+        else:  # experience
+            # Extract pricing from experience listing
+            pricing_text = listing_data.get('pricing_suggestion', '₹500')
+            
+            # Try to extract numeric value
+            import re
+            price_match = re.search(r'(\d+)', pricing_text.replace(',', ''))
+            base_price = int(price_match.group(1)) if price_match else 500
+            
+            # Ensure reasonable pricing for experiences
+            if base_price < 200:
+                base_price = 300
+            elif base_price > 2000:
+                base_price = 1000
+                
+            return {
+                "base_price_per_person": base_price,
+                "group_discount_threshold": 5,
+                "group_discount_percentage": 0.1,
+                "advance_booking_discount": 0.05,
+                "pricing_rationale": f"Based on {listing_data.get('category', 'cultural')} experience standards and duration: {listing_data.get('duration', 2)} hours"
+            }
     except Exception as e:
         print(f"❌ Pricing generation error: {e}")
         raise Exception(f"Pricing generation failed: {str(e)}")
-
+    
 def create_multilingual_listing(listing_data, original_language):
     """Create translations in multiple languages"""
     
@@ -208,11 +231,11 @@ def create_multilingual_listing(listing_data, original_language):
     
     return translations
 
-def voice_to_listing_magic(audio_data, language="hi", host_id=None):
-    """Convert voice recording to professional listing using Google Speech + Gemini"""
+def voice_to_listing_magic(audio_data, language="hi", host_id=None, listing_category="homestay"):
+    """Convert voice recording to professional listing using Google Speech + Gemini with category support"""
     
     try:
-        print(f"🎤 Processing voice input with Google Speech + Gemini in language: {language}")
+        print(f"🎤 Processing voice input for {listing_category} with Google Speech + Gemini in language: {language}")
         
         # Step 1: Real speech to text transcription using Google Speech-to-Text
         try:
@@ -222,19 +245,19 @@ def voice_to_listing_magic(audio_data, language="hi", host_id=None):
             print(f"❌ Transcription failed: {transcription_error}")
             raise Exception(f"Audio transcription failed: {str(transcription_error)}")
         
-        # Step 2: Enhance with Gemini
+        # Step 2: Enhance with Gemini based on category
         try:
             from utils.google_speech_utils import enhance_listing_with_gemini
-            listing_data = enhance_listing_with_gemini(transcribed_text, language)
-            print(f"✅ Gemini enhancement successful")
+            listing_data = enhance_listing_with_gemini(transcribed_text, language, listing_category)
+            print(f"✅ Gemini enhancement successful for {listing_category}")
         except Exception as e:
             print(f"❌ Gemini enhancement failed: {e}")
             raise Exception(f"Listing enhancement failed: {str(e)}")
         
-        # Step 3: Generate pricing intelligence
+        # Step 3: Generate pricing intelligence based on category
         try:
-            pricing_intel = generate_smart_pricing(listing_data, language)
-            print(f"💰 Pricing generated: {pricing_intel}")
+            pricing_intel = generate_smart_pricing(listing_data, language, listing_category)
+            print(f"💰 Pricing generated for {listing_category}: {pricing_intel}")
         except Exception as pricing_error:
             print(f"❌ Pricing generation failed: {pricing_error}")
             raise Exception(f"Pricing generation failed: {str(pricing_error)}")
@@ -255,7 +278,8 @@ def voice_to_listing_magic(audio_data, language="hi", host_id=None):
             "translations": translations,
             "processing_status": "completed",
             "confidence_score": 0.95,
-            "transcription_source": "google_speech_to_text"
+            "transcription_source": "google_speech_to_text",
+            "listing_category": listing_category
         }
         
     except Exception as e:

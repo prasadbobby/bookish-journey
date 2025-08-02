@@ -489,88 +489,61 @@ def voice_to_listing():
         # Verify user is a host
         user = mongo.db.users.find_one({"_id": ObjectId(user_id)})
         if not user or user['user_type'] != 'host':
-            return jsonify({"error": "Only hosts can use voice-to-listing"}), 403
+            return jsonify({"error": "Only hosts can use this feature"}), 403
         
-        # Handle form data with file upload
-        if request.content_type and 'multipart/form-data' in request.content_type:
-            language = request.form.get('language', 'hi')
-            audio_file = request.files.get('audio_data')
-            
-            if not audio_file:
-                return jsonify({"error": "Audio data is required"}), 400
-                
-            audio_data = audio_file.read()
-            audio_base64 = base64.b64encode(audio_data).decode('utf-8')
-            
-        else:
-            # Handle JSON data
-            data = request.get_json()
-            if not data:
-                return jsonify({"error": "No data provided"}), 400
-                
-            language = data.get('language', 'hi')
-            audio_data = data.get('audio_data')
-            
-            if not audio_data:
-                return jsonify({"error": "Audio data is required"}), 400
-            
-            if audio_data.startswith('data:audio'):
-                audio_base64 = audio_data.split(',')[1]
-            else:
-                audio_base64 = audio_data
+        # Get form data
+        if 'audio_data' not in request.files:
+            return jsonify({"error": "No audio file provided"}), 400
         
-        # Process voice to listing
-        from utils.google_speech_utils import transcribe_audio_google_speech, enhance_listing_with_gemini
-        from utils.ai_utils import generate_smart_pricing, create_multilingual_listing
+        audio_file = request.files['audio_data']
+        language = request.form.get('language', 'hi')
+        listing_category = request.form.get('listing_category', 'homestay')  # NEW: Get category
         
-        # Step 1: Transcribe audio
-        transcription_result = transcribe_audio_google_speech(audio_base64, language)
-        transcribed_text = transcription_result["text"]
-        confidence = transcription_result["confidence"]
+        if audio_file.filename == '':
+            return jsonify({"error": "No audio file selected"}), 400
         
-        # Step 2: Enhance with Gemini
-        listing_data = enhance_listing_with_gemini(transcribed_text, language)
+        # Read audio data
+        audio_data = audio_file.read()
         
-        # Step 3: Generate pricing
-        pricing_intel = generate_smart_pricing(listing_data, language)
+        if len(audio_data) == 0:
+            return jsonify({"error": "Empty audio file"}), 400
         
-        # Step 4: Create translations
-        translations = create_multilingual_listing(listing_data, language)
+        print(f"🎤 Processing {listing_category} voice input: {len(audio_data)} bytes, language: {language}")
         
-        # Create the processing result
-        processing_result = {
-            "original_audio_language": language,
-            "transcribed_text": transcribed_text,
-            "enhanced_listing": listing_data,
-            "pricing_intelligence": pricing_intel,
-            "translations": translations,
-            "processing_status": "completed",
-            "confidence_score": confidence,
-            "transcription_source": "google_speech_to_text"
-        }
+        # Process voice to listing with category
+        from utils.ai_utils import voice_to_listing_magic
+        result = voice_to_listing_magic(
+            audio_data=audio_data, 
+            language=language, 
+            host_id=user_id,
+            listing_category=listing_category  # NEW: Pass category
+        )
         
-        # Save processing record
-        voice_record = {
-            "host_id": ObjectId(user_id),
-            "original_language": language,
-            "processing_result": processing_result,
+        # Generate processing ID
+        processing_id = f"voice_{user_id}_{int(time.time())}"
+        
+        # Store in database with category
+        voice_processing_doc = {
+            "_id": processing_id,
+            "user_id": ObjectId(user_id),
+            "listing_category": listing_category,  # NEW: Store category
+            "processing_result": result,
             "created_at": datetime.utcnow(),
-            "processing_type": "voice_to_listing"
+            "status": "completed"
         }
         
-        result = mongo.db.voice_generations.insert_one(voice_record)
-        
-        # Add the processing_id to the result
-        processing_result["processing_id"] = str(result.inserted_id)
+        mongo.db.voice_processing.insert_one(voice_processing_doc)
         
         return jsonify({
-            "message": "Voice successfully converted to listing",
-            "result": processing_result,
-            "processing_id": str(result.inserted_id)
+            "processing_id": processing_id,
+            "result": result,
+            "status": "completed"
         }), 200
         
     except Exception as e:
-        return jsonify({"error": f"Voice processing failed: {str(e)}"}), 500
+        print(f"❌ Voice to listing error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
 def voice_to_listing_magic_google(audio_data, language="hi", host_id=None):
     """Convert voice recording to professional listing using Google Speech-to-Text + Gemini"""
     
@@ -651,146 +624,91 @@ def create_listing_from_voice():
         # Verify user is a host
         user = mongo.db.users.find_one({"_id": ObjectId(user_id)})
         if not user or user['user_type'] != 'host':
-            return jsonify({"error": "Only hosts can create listings"}), 403
+            return jsonify({"error": "Only hosts can use this feature"}), 403
         
         processing_id = data.get('processing_id')
-        selected_language = data.get('selected_language', 'en')
-        custom_edits = data.get('custom_edits', {})
-        
         if not processing_id:
             return jsonify({"error": "Processing ID is required"}), 400
         
-        print(f"🔍 Looking for processing_id: {processing_id}")
-        
         # Get voice processing result
-        try:
-            voice_record = mongo.db.voice_generations.find_one({
-                "_id": ObjectId(processing_id),
-                "host_id": ObjectId(user_id)
-            })
-        except Exception as e:
-            print(f"❌ Error querying voice_generations: {e}")
-            return jsonify({"error": "Invalid processing ID format"}), 400
+        voice_result = mongo.db.voice_processing.find_one({"_id": processing_id})
+        if not voice_result:
+            return jsonify({"error": "Voice processing result not found"}), 404
         
-        if not voice_record:
-            print(f"❌ No voice record found for processing_id: {processing_id}, user_id: {user_id}")
-            return jsonify({"error": "Voice processing record not found"}), 404
+        if str(voice_result['user_id']) != user_id:
+            return jsonify({"error": "Unauthorized access to processing result"}), 403
         
-        print(f"✅ Found voice record: {voice_record['_id']}")
+        # Get category from voice result
+        listing_category = data.get('listing_category') or voice_result.get('listing_category', 'homestay')
+        custom_edits = data.get('custom_edits', {})
         
-        # Get the enhanced listing data
-        processing_result = voice_record['processing_result']
+        print(f"📝 Creating {listing_category} listing from voice processing: {processing_id}")
         
-        if 'error' in processing_result:
-            return jsonify({"error": "Voice processing failed"}), 400
-        
-        listing_data = processing_result.get('enhanced_listing', {})
-        translations = processing_result.get('translations', {})
-        
-        # Use selected language version or default
-        final_listing = translations.get(selected_language, listing_data)
-        
-        # Apply custom edits
-        for key, value in custom_edits.items():
-            if key in ['title', 'description', 'property_type', 'price_per_night', 'max_guests', 'images']:
-                final_listing[key] = value
-        
-        # Extract price from pricing suggestion if available
-        pricing_intel = processing_result.get('pricing_intelligence', {})
-        suggested_price = pricing_intel.get('base_price_per_night', 2000)
-        
-        # Determine location - try custom edits first, then AI generated, then user address
-        location = custom_edits.get('location') or final_listing.get('location') or user.get('address', 'Rural India')
-        
-        # Geocode the location to get coordinates
-        coordinates = {"lat": 0, "lng": 0}  # Default fallback
-        formatted_location = location
-        
-        try:
-            print(f"🌍 Attempting to geocode location: {location}")
-            from utils.geocoding_utils import get_coordinates_from_location
-            
-            geocoding_result = get_coordinates_from_location(location)
-            
-            coordinates = {
-                "lat": geocoding_result['lat'],
-                "lng": geocoding_result['lng']
+        # Create listing data based on category
+        if listing_category == 'homestay':
+            listing_data = {
+                "listing_category": "homestay",
+                "host_id": ObjectId(user_id),
+                "title": custom_edits.get('title', ''),
+                "description": custom_edits.get('description', ''),
+                "location": custom_edits.get('location', ''),
+                "property_type": custom_edits.get('property_type', 'homestay'),
+                "price_per_night": float(custom_edits.get('price_per_night', 2000)),
+                "max_guests": int(custom_edits.get('max_guests', 4)),
+                "amenities": custom_edits.get('amenities', []),
+                "house_rules": custom_edits.get('house_rules', []),
+                "sustainability_features": custom_edits.get('sustainability_features', []),
+                "images": custom_edits.get('images', []),
+                "coordinates": custom_edits.get('coordinates', {"lat": 0, "lng": 0}),
+                "created_at": datetime.utcnow(),
+                "is_active": True,
+                "is_approved": False,
+                "voice_generated": True,
+                "voice_processing_id": processing_id
             }
             
-            # Use the formatted address from Google if available
-            if geocoding_result.get('formatted_address'):
-                formatted_location = geocoding_result['formatted_address']
-                print(f"✅ Using formatted location: {formatted_location}")
+            # Insert into listings collection
+            result = mongo.db.listings.insert_one(listing_data)
+            created_id = str(result.inserted_id)
             
-            print(f"✅ Geocoding successful for voice listing: {coordinates}")
+        else:  # experience
+            listing_data = {
+                "listing_category": "experience",
+                "host_id": ObjectId(user_id),
+                "title": custom_edits.get('title', ''),
+                "description": custom_edits.get('description', ''),
+                "location": custom_edits.get('location', ''),
+                "category": custom_edits.get('category', 'cultural'),
+                "price_per_person": float(custom_edits.get('price_per_person', 500)),
+                "duration": float(custom_edits.get('duration', 2)),
+                "max_participants": int(custom_edits.get('max_participants', 8)),
+                "difficulty_level": custom_edits.get('difficulty_level', 'easy'),
+                "inclusions": custom_edits.get('inclusions', []),
+                "requirements": custom_edits.get('requirements', []),
+                "images": custom_edits.get('images', []),
+                "coordinates": custom_edits.get('coordinates', {"lat": 0, "lng": 0}),
+                "created_at": datetime.utcnow(),
+                "is_active": True,
+                "is_approved": False,
+                "voice_generated": True,
+                "voice_processing_id": processing_id
+            }
             
-        except Exception as geocoding_error:
-            print(f"⚠️ Geocoding failed for voice listing: {geocoding_error}")
-            # Continue with listing creation but log the error
+            # Insert into experiences collection
+            result = mongo.db.experiences.insert_one(listing_data)
+            created_id = str(result.inserted_id)
         
-        # Create the actual listing
-        listing_doc = {
-            "host_id": ObjectId(user_id),
-            "title": final_listing.get('title', 'Rural Village Experience'),
-            "description": final_listing.get('description', 'Authentic rural stay experience'),
-            "location": formatted_location,  # Use formatted location
-            "price_per_night": custom_edits.get('price_per_night', suggested_price),
-            "property_type": final_listing.get('property_type', 'homestay'),
-            "amenities": final_listing.get('amenities', ['Home-cooked meals', 'Local guide']),
-            "images": custom_edits.get('images', []),
-            "coordinates": coordinates,  # Geocoded coordinates
-            "max_guests": custom_edits.get('max_guests', final_listing.get('max_guests', 4)),
-            "house_rules": final_listing.get('house_rules', []),
-            "sustainability_features": final_listing.get('sustainability_features', []),
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
-            "is_active": True,
-            "is_approved": False,  # Needs admin approval
-            "rating": 0.0,
-            "review_count": 0,
-            "availability_calendar": {},
-            "ai_generated": True,
-            "voice_generated": True,
-            "original_voice_language": voice_record['original_language'],
-            "voice_processing_id": processing_id,
-            # Add required fields
-            "ai_generated_content": {
-                "description": final_listing.get('description', ''),
-                "suggested_amenities": final_listing.get('amenities', []),
-                "house_rules": final_listing.get('house_rules', []),
-                "pricing_tips": [
-                    "Consider seasonal pricing adjustments",
-                    "Offer discounts for longer stays"
-                ]
-            },
-            "admin_notes": "",
-            "approved_at": None,
-            "approved_by": None
-        }
-        
-        print(f"📝 Creating voice-generated listing: {listing_doc['title']}")
-        
-        # Insert listing
-        result = mongo.db.listings.insert_one(listing_doc)
-        
-        print(f"✅ Voice listing created with ID: {result.inserted_id}")
+        print(f"✅ {listing_category.title()} created successfully with ID: {created_id}")
         
         return jsonify({
-            "message": "Listing created successfully from voice",
-            "listing_id": str(result.inserted_id),
-            "coordinates": coordinates,
-            "formatted_location": formatted_location,
-            "listing_data": {
-                "title": listing_doc['title'],
-                "description": listing_doc['description'],
-                "price_per_night": listing_doc['price_per_night'],
-                "property_type": listing_doc['property_type'],
-                "images_count": len(listing_doc['images'])
-            }
+            "success": True,
+            "listing_id": created_id,
+            "listing_category": listing_category,
+            "message": f"{listing_category.title()} created successfully from voice input!"
         }), 201
         
     except Exception as e:
-        print(f"❌ Create listing error: {str(e)}")
+        print(f"❌ Create listing from voice error: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 @ai_features_bp.route('/generate-listing-content', methods=['POST'])
