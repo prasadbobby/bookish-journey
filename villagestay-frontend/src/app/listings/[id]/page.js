@@ -152,44 +152,83 @@ const ListingDetailPage = () => {
     }
   };
 
-  const handlePaymentSuccess = async (paymentDetails) => {
-    try {
-      console.log('Completing payment for booking:', pendingBooking.booking_id);
-      console.log('Payment details:', paymentDetails);
-      
-      const response = await bookingsAPI.completePayment(pendingBooking.booking_id, {
-        payment_method: paymentDetails.method,
-        payment_signature: paymentDetails.signature,
-        transaction_id: paymentDetails.transaction_id,
-        upi_id: paymentDetails.upi_id,
-        card_last_four: paymentDetails.card_last_four
-      });
-      
-      console.log('Payment completion response:', response);
-      
-      setShowPaymentModal(false);
-      
-      toast.success('Booking confirmed! Redirecting to booking details...');
-      
-      setTimeout(() => {
-        router.push(`/bookings/${pendingBooking.booking_id}`);
-      }, 1500);
-      
-    } catch (error) {
-      console.error('Payment completion error:', error);
-      console.error('Error details:', error.response?.data);
-      
-      if (error.response?.status === 404) {
-        toast.error('Booking not found. Please try again.');
-      } else if (error.response?.status === 400) {
-        toast.error('Payment verification failed. Please contact support.');
-      } else {
-        toast.error('Failed to confirm booking. Please contact support.');
+ const handlePaymentSuccess = async (paymentDetails) => {
+  try {
+    console.log('💳 Completing payment for booking:', pendingBooking.booking_id);
+    console.log('💳 Payment details:', paymentDetails);
+    
+    // Try multiple endpoints for backward compatibility
+    let response;
+    let success = false;
+    
+    const endpoints = [
+      'complete-payment',
+      'confirm-payment', 
+      'confirm'
+    ];
+    
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`🔄 Trying endpoint: ${endpoint}`);
+        
+        response = await bookingsAPI.completePayment(pendingBooking.booking_id, {
+          payment_method: paymentDetails.method,
+          payment_signature: paymentDetails.signature,
+          transaction_id: paymentDetails.transaction_id,
+          upi_id: paymentDetails.upi_id,
+          card_last_four: paymentDetails.card_last_four
+        });
+        
+        console.log('✅ Payment completed successfully');
+        success = true;
+        break;
+        
+      } catch (endpointError) {
+        console.log(`❌ Endpoint ${endpoint} failed:`, endpointError.response?.status);
+        
+        if (endpointError.response?.status === 404) {
+          continue; // Try next endpoint
+        } else {
+          throw endpointError; // Other errors should be thrown
+        }
       }
-    } finally {
-      setPendingBooking(null);
     }
-  };
+    
+    if (!success) {
+      throw new Error('All payment endpoints failed');
+    }
+    
+    console.log('📄 Payment completion response:', response);
+    
+    setShowPaymentModal(false);
+    setPendingBooking(null);
+    
+    toast.success('Booking confirmed! Redirecting to booking details...');
+    
+    setTimeout(() => {
+      router.push(`/bookings/${pendingBooking.booking_id}`);
+    }, 1500);
+    
+  } catch (error) {
+    console.error('💥 Payment completion error:', error);
+    console.error('📋 Error details:', error.response?.data);
+    
+    // Enhanced error handling
+    if (error.response?.status === 404) {
+      toast.error('Booking not found. Please try again.');
+    } else if (error.response?.status === 400) {
+      const errorMessage = error.response?.data?.error || 'Payment verification failed';
+      toast.error(errorMessage);
+    } else if (error.response?.status === 403) {
+      toast.error('You are not authorized to complete this payment.');
+    } else if (error.code === 'ERR_NETWORK') {
+      toast.error('Network error. Please check your connection and try again.');
+    } else {
+      const errorMessage = error.response?.data?.error || 'Failed to confirm booking';
+      toast.error(`${errorMessage}. Please contact support.`);
+    }
+  }
+};
 
   const handleShare = () => {
     if (navigator.share) {

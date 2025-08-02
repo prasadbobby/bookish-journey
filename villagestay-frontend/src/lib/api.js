@@ -462,33 +462,67 @@ export const universalAPI = {
 };
 
 // Bookings API - FIXED
+// Bookings API - Enhanced with multiple endpoint support
 export const bookingsAPI = {
   create: (data) => api.post('/api/bookings/', data),
   getAll: (params) => api.get('/api/bookings/', { params }),
   getById: (id) => api.get(`/api/bookings/${id}`),
   
-  // Fixed payment completion methods - using 'api' instead of 'apiClient'
+  // Enhanced payment completion with fallback endpoints
   completePayment: async (bookingId, paymentData) => {
-    const response = await api.post(`/api/bookings/${bookingId}/complete-payment`, paymentData);
-    return response.data;
+    console.log('🔄 API: Attempting to complete payment for booking:', bookingId);
+    
+    // Try primary endpoint first
+    try {
+      const response = await api.post(`/api/bookings/${bookingId}/complete-payment`, paymentData);
+      console.log('✅ API: Payment completed via complete-payment endpoint');
+      return response;
+    } catch (primaryError) {
+      console.log('⚠️ API: Primary endpoint failed, trying fallbacks...');
+      
+      // Try alternative endpoints
+      const fallbackEndpoints = [
+        'confirm-payment',
+        'confirm'
+      ];
+      
+      for (const endpoint of fallbackEndpoints) {
+        try {
+          console.log(`🔄 API: Trying ${endpoint} endpoint`);
+          const response = await api.post(`/api/bookings/${bookingId}/${endpoint}`, {
+            payment_details: paymentData,
+            ...paymentData
+          });
+          console.log(`✅ API: Payment completed via ${endpoint} endpoint`);
+          return response;
+        } catch (fallbackError) {
+          console.log(`❌ API: ${endpoint} endpoint failed`);
+          continue;
+        }
+      }
+      
+      // If all endpoints fail, throw the original error
+      throw primaryError;
+    }
   },
   
-  // Alternative payment confirmation methods in case your backend uses different endpoints
+  // Alternative methods for different backend configurations
   confirmPayment: async (bookingId, paymentData) => {
     const response = await api.post(`/api/bookings/${bookingId}/confirm-payment`, paymentData);
-    return response.data;
+    return response;
   },
   
   confirm: async (bookingId, paymentData) => {
-    const response = await api.post(`/api/bookings/${bookingId}/confirm`, paymentData);
-    return response.data;
+    const response = await api.post(`/api/bookings/${bookingId}/confirm`, {
+      payment_details: paymentData
+    });
+    return response;
   },
   
   // Other booking methods
   cancel: (id, data) => api.post(`/api/bookings/${id}/cancel`, data),
   complete: (id) => api.post(`/api/bookings/${id}/complete`),
 };
-
 // AI Features API
 export const aiAPI = {
   generateVillageStory: (data) => api.post('/api/ai-features/generate-village-story', data),

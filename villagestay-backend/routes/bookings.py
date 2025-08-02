@@ -233,9 +233,110 @@ def create_experience_booking(user_id, data, experience):
         print(f"❌ Error creating experience booking: {e}")
         raise e
 
+@bookings_bp.route('/<booking_id>/complete-payment', methods=['POST'])
+@jwt_required()
+def complete_payment(booking_id):
+    try:
+        user_id = get_jwt_identity()
+        data = request.get_json()
+        
+        print(f"💳 Completing payment for booking: {booking_id}")
+        print(f"💳 Payment data: {data}")
+        
+        # Get booking
+        booking = mongo.db.bookings.find_one({"_id": ObjectId(booking_id)})
+        if not booking:
+            return jsonify({"error": "Booking not found"}), 404
+        
+        # Verify ownership
+        if str(booking['tourist_id']) != user_id:
+            return jsonify({"error": "Unauthorized"}), 403
+        
+        # Verify booking is in pending status
+        if booking['status'] != 'pending':
+            return jsonify({"error": "Booking is not in pending status"}), 400
+        
+        # Validate payment details
+        payment_method = data.get('payment_method')
+        transaction_id = data.get('transaction_id')
+        
+        if not payment_method or not transaction_id:
+            return jsonify({"error": "Payment method and transaction ID are required"}), 400
+        
+        # Create payment record
+        payment_record = {
+            "method": payment_method,
+            "transaction_id": transaction_id,
+            "signature": data.get('payment_signature'),
+            "upi_id": data.get('upi_id'),
+            "card_last_four": data.get('card_last_four'),
+            "amount": booking['total_amount'],
+            "currency": "INR",
+            "status": "completed",
+            "processed_at": datetime.utcnow()
+        }
+        
+        # Calculate fees and earnings
+        base_amount = booking.get('base_amount', booking['total_amount'] * 0.93)  # Rough calculation if not stored
+        platform_fee = booking.get('platform_fee', booking['total_amount'] * 0.05)
+        community_contribution = booking.get('community_contribution', booking['total_amount'] * 0.02)
+        host_earnings = base_amount
+        
+        # Update booking with payment completion
+        update_data = {
+            "status": "confirmed",
+            "payment_status": "completed",
+            "payment_details": payment_record,
+            "host_earnings": host_earnings,
+            "platform_fee": platform_fee,
+            "community_contribution": community_contribution,
+            "confirmed_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }
+        
+        result = mongo.db.bookings.update_one(
+            {"_id": ObjectId(booking_id)},
+            {"$set": update_data}
+        )
+        
+        if result.modified_count == 0:
+            return jsonify({"error": "Failed to update booking"}), 500
+        
+        # Get updated booking for response
+        updated_booking = mongo.db.bookings.find_one({"_id": ObjectId(booking_id)})
+        
+        print(f"✅ Payment completed for booking: {booking_id}")
+        
+        # Format response
+        response_data = {
+            "message": "Payment completed successfully",
+            "booking_id": booking_id,
+            "booking_reference": updated_booking['booking_reference'],
+            "status": updated_booking['status'],
+            "payment_status": updated_booking['payment_status'],
+            "total_amount": updated_booking['total_amount'],
+            "transaction_id": transaction_id,
+            "confirmed_at": updated_booking['confirmed_at'].isoformat()
+        }
+        
+        return jsonify(response_data), 200
+        
+    except Exception as e:
+        print(f"❌ Error completing payment: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@bookings_bp.route('/<booking_id>/confirm-payment', methods=['POST'])
+@jwt_required()
+def confirm_payment(booking_id):
+    """Alternative endpoint name for payment confirmation"""
+    return complete_payment(booking_id)
+
 @bookings_bp.route('/<booking_id>/confirm', methods=['POST'])
 @jwt_required()
-def confirm_booking(booking_id):
+def confirm_booking_with_payment(booking_id):
+    """Legacy endpoint for payment confirmation"""
     try:
         user_id = get_jwt_identity()
         data = request.get_json()
@@ -249,16 +350,19 @@ def confirm_booking(booking_id):
         if str(booking['tourist_id']) != user_id:
             return jsonify({"error": "Unauthorized"}), 403
         
-        # Verify payment details (mock validation)
-        payment_details = data.get('payment_details', {})
-        if not payment_details.get('transaction_id'):
+        # Check if this is a payment confirmation (has payment_details) or just booking confirmation
+        if 'payment_details' in data or 'payment_method' in data:
+            return complete_payment(booking_id)
+        
+        # Original booking confirmation logic
+        if not data.get('payment_details', {}).get('transaction_id'):
             return jsonify({"error": "Payment details required"}), 400
         
         # Update booking status
         update_data = {
             "status": "confirmed",
             "payment_status": "paid",
-            "payment_details": payment_details,
+            "payment_details": data.get('payment_details', {}),
             "confirmed_at": datetime.utcnow(),
             "updated_at": datetime.utcnow()
         }
@@ -268,14 +372,11 @@ def confirm_booking(booking_id):
             {"$set": update_data}
         )
         
-        print(f"✅ Booking confirmed: {booking_id}")
-        
         return jsonify({"message": "Booking confirmed successfully"}), 200
         
     except Exception as e:
         print(f"❌ Error confirming booking: {e}")
         return jsonify({"error": str(e)}), 500
-
 @bookings_bp.route('/', methods=['GET'])
 @jwt_required()
 def get_user_bookings():
