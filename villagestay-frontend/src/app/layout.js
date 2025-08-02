@@ -1,4 +1,4 @@
-// src/app/layout.js
+// src/app/layout.js - Aggressive SW Registration
 import { Inter } from 'next/font/google'
 import './globals.css'
 import ClientLayout from './layout.client'
@@ -26,7 +26,6 @@ export const metadata = {
   }
 }
 
-// Separate viewport export
 export const viewport = {
   width: 'device-width',
   initialScale: 1,
@@ -40,32 +39,68 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <head>
-        {/* PWA Meta Tags */}
         <meta name="application-name" content="VillageStay" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="VillageStay" />
         <meta name="format-detection" content="telephone=no" />
         <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="msapplication-config" content="/icons/browserconfig.xml" />
         <meta name="msapplication-TileColor" content="#10b981" />
         <meta name="msapplication-tap-highlight" content="no" />
         
-        {/* Service Worker Registration */}
+        {/* Aggressive Service Worker Registration */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js')
-                    .then(function(registration) {
-                      console.log('✅ ServiceWorker registration successful');
-                    })
-                    .catch(function(err) {
-                      console.log('❌ ServiceWorker registration failed: ', err);
+              // Immediately register service worker
+              (function() {
+                if ('serviceWorker' in navigator) {
+                  // Register as soon as possible
+                  navigator.serviceWorker.register('/sw.js', {
+                    scope: '/',
+                    updateViaCache: 'none'
+                  })
+                  .then(function(registration) {
+                    console.log('✅ SW registered successfully');
+                    
+                    // Force activation if waiting
+                    if (registration.waiting) {
+                      registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                    }
+                    
+                    // Handle updates
+                    registration.addEventListener('updatefound', () => {
+                      const newWorker = registration.installing;
+                      newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed') {
+                          if (navigator.serviceWorker.controller) {
+                            console.log('🔄 SW update available');
+                            newWorker.postMessage({ type: 'SKIP_WAITING' });
+                          } else {
+                            console.log('✅ SW installed for first time');
+                          }
+                        }
+                      });
                     });
-                });
-              }
+                  })
+                  .catch(function(error) {
+                    console.error('❌ SW registration failed:', error);
+                  });
+                  
+                  // Handle controller changes
+                  navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    console.log('🔄 SW controller changed');
+                    // Optionally reload: window.location.reload();
+                  });
+                  
+                  // Listen for SW messages
+                  navigator.serviceWorker.addEventListener('message', function(event) {
+                    if (event.data && event.data.type === 'SW_ACTIVATED') {
+                      console.log('✅ SW activated:', event.data.version);
+                    }
+                  });
+                }
+              })();
             `,
           }}
         />

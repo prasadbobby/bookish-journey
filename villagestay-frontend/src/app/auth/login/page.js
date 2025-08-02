@@ -65,22 +65,28 @@ const LoginPage = () => {
   const testimonials = [
     {
       text: "VillageStay connected me with authentic rural experiences. The AI recommendations were spot-on!",
-      author: "Sarah Johnson",
+      author: "Prasad Bobby",
       role: "Travel Enthusiast",
       location: "California, USA",
     },
     {
       text: "As a village host, this platform helped me showcase our heritage and earn sustainable income.",
-      author: "Raj Kumar",
+      author: "Dharma Sai",
       role: "Village Host",
-      location: "Rajasthan, India",
+      location: "New York, USA",
     },
     {
       text: "The cultural concierge made my village stay educational and meaningful. Highly recommended!",
-      author: "Maria Santos",
+      author: "Sowjanya",
       role: "Cultural Explorer",
       location: "São Paulo, Brazil",
     },
+    {
+  text: "VillageStay gave our family an unforgettable escape into rural life. The warmth of the community was unmatched.",
+  author: "Saketh",
+  role: "Family Traveler",
+  location: "Vancouver, Canada"
+}
   ];
 
   // Auto-rotate testimonials

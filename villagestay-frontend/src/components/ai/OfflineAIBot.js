@@ -1,4 +1,4 @@
-// src/components/ai/OfflineAIBot.js - Updated with Phi-3.5-mini
+// src/components/ai/OfflineAIBot.js - Seamless Background Loading
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -8,7 +8,6 @@ import {
   XMarkIcon,
   PaperAirplaneIcon,
   SparklesIcon,
-  ClockIcon,
   ExclamationTriangleIcon,
   MapPinIcon,
   HeartIcon,
@@ -17,73 +16,104 @@ import {
 } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 
+// Global AI engine instance to persist across component re-renders
+let globalEngine = null;
+let initializationPromise = null;
+let isInitializing = false;
+
 const OfflineAIBot = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [isInitialized, setIsInitialized] = useState(false);
-  const [engine, setEngine] = useState(null);
+  const [isReady, setIsReady] = useState(false);
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [modelStatus, setModelStatus] = useState('initializing');
   const [isOnline, setIsOnline] = useState(true);
-  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [hasError, setHasError] = useState(false);
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Initialize WebLLM with better model
+  // Background AI initialization
   useEffect(() => {
     const initializeAI = async () => {
       if (typeof window === 'undefined') return;
       
-      try {
-        setModelStatus('downloading');
-        
-        const webllm = await import('@mlc-ai/web-llm');
-        const engineInstance = new webllm.MLCEngine();
-        
-        engineInstance.setInitProgressCallback((report) => {
-          const progress = Math.round((report.progress || 0) * 100);
-          setDownloadProgress(progress);
-          console.log(`🤖 AI Model (Phi-3.5-mini) loading: ${progress}%`);
-        });
+      // If already initialized, use existing engine
+      if (globalEngine) {
+        setIsReady(true);
+        return globalEngine;
+      }
 
-        // Use Phi-3.5-mini for better quality (you can change this to any model above)
-        await engineInstance.reload('Phi-3.5-mini-instruct-q4f16_1-MLC');
-        
-        setEngine(engineInstance);
-        setIsInitialized(true);
-        setModelStatus('ready');
-        setDownloadProgress(100);
-        
-        console.log('✅ Phi-3.5-mini Offline AI Assistant Ready');
-        // toast.success('🤖 AI Assistant Ready!', { duration: 3000 });
-        
-      } catch (error) {
-        console.error('AI initialization failed:', error);
-        setModelStatus('error');
-        
-        // Fallback to smaller model if Phi-3.5 fails
+      // If already initializing, wait for it
+      if (initializationPromise) {
         try {
-          console.log('🔄 Trying fallback model...');
-          await engineInstance.reload('Qwen2.5-3B-Instruct-q4f16_1-MLC');
-          setEngine(engineInstance);
-          setIsInitialized(true);
-          setModelStatus('ready');
-          console.log('✅ Fallback model loaded successfully');
-        } catch (fallbackError) {
-          console.error('Fallback model also failed:', fallbackError);
-          setModelStatus('error');
+          await initializationPromise;
+          setIsReady(true);
+          return globalEngine;
+        } catch (error) {
+          setHasError(true);
+          return null;
+        }
+      }
+
+      // Start initialization
+      if (!isInitializing) {
+        isInitializing = true;
+        
+        initializationPromise = (async () => {
+          try {
+            console.log('🤖 Starting AI engine initialization in background...');
+            
+            const webllm = await import('@mlc-ai/web-llm');
+            const engineInstance = new webllm.MLCEngine();
+            
+            // Silent initialization - no progress callbacks
+            await engineInstance.reload('Phi-3.5-mini-instruct-q4f16_1-MLC');
+            
+            globalEngine = engineInstance;
+            console.log('✅ AI engine ready');
+            
+            return engineInstance;
+          } catch (error) {
+            console.error('❌ AI initialization failed:', error);
+            
+            // Try fallback model silently
+            try {
+              console.log('🔄 Trying fallback model...');
+              const webllm = await import('@mlc-ai/web-llm');
+              const engineInstance = new webllm.MLCEngine();
+              await engineInstance.reload('Qwen2.5-3B-Instruct-q4f16_1-MLC');
+              
+              globalEngine = engineInstance;
+              console.log('✅ Fallback model loaded');
+              return engineInstance;
+            } catch (fallbackError) {
+              console.error('❌ All models failed:', fallbackError);
+              throw fallbackError;
+            }
+          }
+        })();
+
+        try {
+          await initializationPromise;
+          setIsReady(true);
+          setHasError(false);
+        } catch (error) {
+          setHasError(true);
+          setIsReady(false);
+        } finally {
+          isInitializing = false;
         }
       }
     };
 
+    // Start initialization immediately when component mounts
     initializeAI();
   }, []);
 
   // Initialize welcome message when bot is first opened
   useEffect(() => {
-    if (isOpen && messages.length === 0 && isInitialized) {
+    if (isOpen && messages.length === 0 && isReady && globalEngine) {
       const welcomeMessage = {
         id: Date.now(),
         type: 'bot',
@@ -101,7 +131,7 @@ What would you like help with today?`,
       };
       setMessages([welcomeMessage]);
     }
-  }, [isOpen, messages.length, isInitialized]);
+  }, [isOpen, messages.length, isReady]);
 
   // Online/offline detection
   useEffect(() => {
@@ -126,17 +156,17 @@ What would you like help with today?`,
 
   // Focus input when opened
   useEffect(() => {
-    if (isOpen && inputRef.current) {
-      setTimeout(() => inputRef.current?.focus(), 300);
+    if (isOpen && inputRef.current && isReady) {
+      setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [isOpen]);
+  }, [isOpen, isReady]);
 
   const sendMessage = async () => {
     if (!inputMessage.trim()) return;
 
-    // Only allow messages if AI is ready
-    if (!isInitialized || modelStatus !== 'ready') {
-      toast.error('AI assistant is still loading. Please wait...');
+    // Check if AI is ready
+    if (!isReady || !globalEngine) {
+      toast.error('AI assistant is starting up. Please wait a moment...');
       return;
     }
 
@@ -187,6 +217,10 @@ What would you like help with today?`,
   };
 
   const generateAIResponse = async (message) => {
+    if (!globalEngine) {
+      throw new Error('AI engine not available');
+    }
+
     const systemPrompt = `You are Maya, an expert offline AI assistant for VillageStay - India's premier rural tourism platform. You specialize in authentic village experiences across India.
 
 RESPONSE GUIDELINES:
@@ -212,10 +246,10 @@ Always prioritize user safety and provide authentic rural tourism guidance.`;
       { role: "user", content: message }
     ];
 
-    const completion = await engine.chat.completions.create({
+    const completion = await globalEngine.chat.completions.create({
       messages: messages,
       temperature: 0.7,
-      max_tokens: 200, // Slightly longer for better answers
+      max_tokens: 200,
     });
 
     return completion.choices[0].message.content;
@@ -228,19 +262,28 @@ Always prioritize user safety and provide authentic rural tourism guidance.`;
     }
   };
 
-  const getStatusIcon = () => {
-    if (modelStatus === 'downloading') return <ClockIcon className="w-4 h-4 text-yellow-500 animate-pulse" />;
-    if (modelStatus === 'error') return <ExclamationTriangleIcon className="w-4 h-4 text-red-500" />;
-    if (modelStatus === 'ready') return <SparklesIcon className="w-4 h-4 text-white-800" />;
-    return <ClockIcon className="w-4 h-4 text-blue-500 animate-spin" />;
-  };
-
-  const getStatusText = () => {
-    if (modelStatus === 'initializing') return 'Starting up...';
-    if (modelStatus === 'downloading') return `Loading Phi-3.5 model... ${downloadProgress}%`;
-    if (modelStatus === 'error') return 'Model failed to load';
-    if (modelStatus === 'ready') return isOnline ? 'Phi-3.5 Ready' : 'Phi-3.5 Ready (Offline)';
-    return 'Initializing...';
+  const getStatusDisplay = () => {
+    if (hasError) {
+      return {
+        color: 'bg-red-400',
+        icon: '✗',
+        text: 'Error'
+      };
+    }
+    
+    if (isReady) {
+      return {
+        color: 'bg-green-400',
+        icon: '✓',
+        text: isOnline ? 'Ready' : 'Ready (Offline)'
+      };
+    }
+    
+    return {
+      color: 'bg-yellow-400',
+      icon: '⚡',
+      text: 'Starting...'
+    };
   };
 
   const quickActions = [
@@ -270,8 +313,10 @@ Always prioritize user safety and provide authentic rural tourism guidance.`;
     }
   ];
 
-  // Don't show anything if AI failed to load
-  if (modelStatus === 'error') {
+  const status = getStatusDisplay();
+
+  // Don't show anything if there's an unrecoverable error
+  if (hasError && !globalEngine) {
     return null;
   }
 
@@ -297,12 +342,8 @@ Always prioritize user safety and provide authentic rural tourism guidance.`;
         <ChatBubbleLeftRightIcon className="w-7 h-7" />
         
         {/* Status indicator */}
-        <div className={`absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center ${
-          modelStatus === 'ready' ? 'bg-green-400' : 
-          modelStatus === 'downloading' ? 'bg-yellow-400' : 'bg-red-400'
-        } animate-pulse`}>
-          {modelStatus === 'ready' && <span className="text-xs">✓</span>}
-          {modelStatus === 'downloading' && <span className="text-xs">{Math.floor(downloadProgress / 10)}</span>}
+        <div className={`absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center ${status.color}`}>
+          <span className="text-xs font-bold text-white">{status.icon}</span>
         </div>
       </motion.button>
 
@@ -319,11 +360,11 @@ Always prioritize user safety and provide authentic rural tourism guidance.`;
             <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-4 flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                  {getStatusIcon()}
+                  <SparklesIcon className="w-6 h-6" />
                 </div>
                 <div>
                   <h3 className="font-bold text-lg">Maya AI Assistant</h3>
-                  <p className="text-xs text-green-100">{getStatusText()}</p>
+                  <p className="text-xs text-green-100">{status.text}</p>
                 </div>
               </div>
               <button
@@ -334,119 +375,117 @@ Always prioritize user safety and provide authentic rural tourism guidance.`;
               </button>
             </div>
 
-            {/* Loading State */}
-            {modelStatus !== 'ready' && (
-              <div className="flex-1 flex items-center justify-center bg-gray-50">
-                <div className="text-center p-6">
-                  <div className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                  <h3 className="text-lg font-semibold text-gray-800 mb-2">Loading Phi-3.5 AI Model</h3>
-                  <p className="text-gray-600 mb-4">Downloading advanced AI for better assistance...</p>
-                  
-                  {/* Progress Bar */}
-                  <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
-                    <div 
-                      className="bg-green-500 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${downloadProgress}%` }}
-                    ></div>
-                  </div>
-                  <p className="text-sm text-gray-500">{downloadProgress}% complete</p>
-                </div>
-              </div>
-            )}
-
             {/* Messages */}
-            {modelStatus === 'ready' && (
-              <>
-                <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
-                  {messages.map((message) => (
-                    <motion.div
-                      key={message.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div className={`max-w-[85%] p-4 rounded-2xl ${
-                        message.type === 'user'
-                          ? 'bg-green-500 text-white'
-                          : 'bg-white text-gray-800 shadow-md border'
-                      }`}>
-                        <div className="text-sm leading-relaxed whitespace-pre-wrap">
-                          {message.content}
-                        </div>
-                        <div className={`text-xs mt-2 ${
-                          message.type === 'user' ? 'text-green-100' : 'text-gray-500'
-                        }`}>
-                          {message.timestamp.toLocaleTimeString([], { 
-                            hour: '2-digit', 
-                            minute: '2-digit' 
-                          })}
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))}
-
-                  {/* Typing Indicator */}
-                  {isTyping && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="flex justify-start"
-                    >
-                      <div className="bg-white p-4 rounded-2xl shadow-md border">
-                        <div className="flex space-x-1">
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-
-                  <div ref={messagesEndRef} />
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+              {/* Show not ready message if AI is still loading */}
+              {!isReady && !hasError && (
+                <div className="text-center p-6">
+                  <div className="w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                  <p className="text-gray-600">AI assistant is starting up...</p>
+                  <p className="text-sm text-gray-500 mt-2">This usually takes a few seconds</p>
                 </div>
+              )}
 
-                {/* Input Area */}
-                <div className="p-4 border-t bg-white">
-                  <div className="flex space-x-3 mb-3">
-                    <input
-                      ref={inputRef}
-                      type="text"
-                      value={inputMessage}
-                      onChange={(e) => setInputMessage(e.target.value)}
-                      onKeyPress={handleKeyPress}
-                      placeholder="Ask about routes, food, villages, emergencies..."
-                      className="flex-1 p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
-                      disabled={!isInitialized}
-                    />
+              {/* Show error state */}
+              {hasError && (
+                <div className="text-center p-6">
+                  <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <ExclamationTriangleIcon className="w-6 h-6" />
+                  </div>
+                  <p className="text-gray-600">AI assistant temporarily unavailable</p>
+                  <p className="text-sm text-gray-500 mt-2">Please refresh the page to try again</p>
+                </div>
+              )}
+
+              {/* Messages when ready */}
+              {isReady && messages.map((message) => (
+                <motion.div
+                  key={message.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div className={`max-w-[85%] p-4 rounded-2xl ${
+                    message.type === 'user'
+                      ? 'bg-green-500 text-white'
+                      : 'bg-white text-gray-800 shadow-md border'
+                  }`}>
+                    <div className="text-sm leading-relaxed whitespace-pre-wrap">
+                      {message.content}
+                    </div>
+                    <div className={`text-xs mt-2 ${
+                      message.type === 'user' ? 'text-green-100' : 'text-gray-500'
+                    }`}>
+                      {message.timestamp.toLocaleTimeString([], { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                      })}
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+
+              {/* Typing Indicator */}
+              {isTyping && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex justify-start"
+                >
+                  <div className="bg-white p-4 rounded-2xl shadow-md border">
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Input Area */}
+            <div className="p-4 border-t bg-white">
+              <div className="flex space-x-3 mb-3">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={inputMessage}
+                  onChange={(e) => setInputMessage(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder={isReady ? "Ask about routes, food, villages, emergencies..." : "AI assistant is starting up..."}
+                  className="flex-1 p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+                  disabled={!isReady}
+                />
+                <button
+                  onClick={sendMessage}
+                  disabled={!inputMessage.trim() || !isReady}
+                  className="p-3 bg-green-500 text-white rounded-xl hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <PaperAirplaneIcon className="w-5 h-5" />
+                </button>
+              </div>
+              
+              {/* Quick Actions */}
+              {isReady && (
+                <div className="grid grid-cols-2 gap-2">
+                  {quickActions.map((action, index) => (
                     <button
-                      onClick={sendMessage}
-                      disabled={!inputMessage.trim() || !isInitialized}
-                      className="p-3 bg-green-500 text-white rounded-xl hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      key={index}
+                      onClick={() => {
+                        setInputMessage(action.query);
+                        setTimeout(sendMessage, 100);
+                      }}
+                      className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-xs transition-all duration-200 border ${action.color}`}
                     >
-                      <PaperAirplaneIcon className="w-5 h-5" />
+                      <action.icon className="w-4 h-4" />
+                      <span className="font-medium">{action.text}</span>
                     </button>
-                  </div>
-                  
-                  {/* Quick Actions */}
-                  <div className="grid grid-cols-2 gap-2">
-                    {quickActions.map((action, index) => (
-                      <button
-                        key={index}
-                        onClick={() => {
-                          setInputMessage(action.query);
-                          setTimeout(sendMessage, 100);
-                        }}
-                        disabled={!isInitialized}
-                        className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-xs transition-all duration-200 border ${action.color} disabled:opacity-50`}
-                      >
-                        <action.icon className="w-4 h-4" />
-                        <span className="font-medium">{action.text}</span>
-                      </button>
-                    ))}
-                  </div>
+                  ))}
                 </div>
-              </>
-            )}
+              )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

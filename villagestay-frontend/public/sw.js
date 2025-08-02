@@ -1,666 +1,633 @@
-// villagestay-frontend/public/sw.js - Clean WebLLM Support Only
+// villagestay-frontend/public/sw.js - Perfect Offline Home Page Loading
+const CACHE_NAME = 'villagestay-v4.0.0';
+const RUNTIME_CACHE = 'villagestay-runtime-v4.0.0';
+const STATIC_CACHE = 'villagestay-static-v4.0.0';
 
-const CACHE_NAME = 'villagestay-v1.4.0';
-const OFFLINE_PAGE = '/offline';
-const API_CACHE_NAME = 'villagestay-api-v1.2.0';
-const WEBLLM_CACHE = 'villagestay-webllm-v1.0.0';
-
-// Check if we're in development mode
-const isDevelopment = () => {
-  return self.location.hostname === 'localhost' || 
-         self.location.hostname === '127.0.0.1' ||
-         self.location.hostname === '0.0.0.0' ||
-         self.location.port === '3000';
-};
-
-// Resources to cache immediately
-const STATIC_RESOURCES = [
+// Critical resources that MUST be available offline
+const CRITICAL_CACHE_URLS = [
   '/',
   '/offline',
-  '/listings',
-  '/auth/login',
-  '/host/dashboard',
-  '/tourist/dashboard',
-  '/manifest.json',
-  '/icons/icon-192x192.png',
-  '/icons/icon-512x512.png',
-  '/icons/apple-touch-icon.png',
-  '/icons/badge-72x72.png',
+  '/manifest.json'
 ];
 
-// WebLLM model files to cache (these will be downloaded by WebLLM itself)
-const WEBLLM_MODEL_PATTERNS = [
-  'https://huggingface.co/mlc-ai/',
-  'https://cdn.jsdelivr.net/npm/@mlc-ai/',
-  '/static/js/chunk', // Next.js chunks containing WebLLM
-  'wasm', // WebAssembly files
-  '.wasm',
-  'onnx', // ONNX model files
-  '.onnx'
-];
-
-// API endpoints to cache
-const API_ENDPOINTS = [
-  '/api/listings',
-  '/api/auth/profile',
-  '/api/impact',
-  '/api/bookings',
-  '/api/ai-features',
-];
-
-// Essential emergency contacts only (no mock responses)
-const EMERGENCY_CONTACTS = {
-  police: 100,
-  fire: 101,
-  ambulance: 108,
-  disaster: 108,
-  tourist: 1363,
-  women: 1091
-};
-
-// Supported schemes for caching
-const CACHEABLE_SCHEMES = ['http', 'https'];
-
-// Install event - cache static resources and prepare for WebLLM
+// Install event - Aggressively cache critical resources
 self.addEventListener('install', (event) => {
-  console.log('🔧 Service Worker: Installing with WebLLM support...');
+  console.log('🔧 SW v4.0.0: Installing...');
+  
+  // Skip waiting to activate immediately
+  self.skipWaiting();
   
   event.waitUntil(
-    Promise.all([
-      // Cache static resources
-      caches.open(CACHE_NAME)
-        .then((cache) => {
-          console.log('📦 Service Worker: Caching static resources');
-          return cache.addAll(STATIC_RESOURCES);
-        }),
-      
-      // Prepare WebLLM cache (will be populated by WebLLM itself)
-      caches.open(WEBLLM_CACHE)
-        .then((cache) => {
-          console.log('🤖 Service Worker: WebLLM cache prepared');
-          return Promise.resolve();
-        })
-    ])
-    .then(() => {
-      console.log('✅ Service Worker: Installed successfully with WebLLM support');
-      return self.skipWaiting();
-    })
-    .catch((error) => {
-      console.error('❌ Service Worker: Installation failed', error);
-    })
-  );
-});
-
-// Activate event - clean up old caches
-self.addEventListener('activate', (event) => {
-  console.log('🚀 Service Worker: Activating...');
-  
-  event.waitUntil(
-    caches.keys()
-      .then((cacheNames) => {
-        return Promise.all(
-          cacheNames.map((cacheName) => {
-            if (cacheName !== CACHE_NAME && 
-                cacheName !== API_CACHE_NAME && 
-                cacheName !== WEBLLM_CACHE &&
-                !cacheName.includes('mlc-ai')) { // Keep WebLLM related caches
-              console.log('🗑️ Service Worker: Deleting old cache', cacheName);
-              return caches.delete(cacheName);
+    (async () => {
+      try {
+        const cache = await caches.open(CACHE_NAME);
+        
+        // Cache critical URLs with custom requests to ensure they work offline
+        const cachePromises = CRITICAL_CACHE_URLS.map(async (url) => {
+          try {
+            console.log(`📦 Caching: ${url}`);
+            
+            // Create a request with proper headers
+            const request = new Request(url, {
+              cache: 'reload',
+              mode: 'same-origin',
+              credentials: 'same-origin'
+            });
+            
+            const response = await fetch(request);
+            
+            if (response.status === 200) {
+              await cache.put(url, response.clone());
+              console.log(`✅ Successfully cached: ${url}`);
+            } else {
+              console.warn(`⚠️ Failed to cache ${url}: Status ${response.status}`);
+              
+              // Create a fallback response for critical pages
+              if (url === '/' || url === '/offline') {
+                const fallbackResponse = new Response(generateOfflineHTML(), {
+                  status: 200,
+                  statusText: 'OK',
+                  headers: {
+                    'Content-Type': 'text/html',
+                    'Cache-Control': 'no-cache'
+                  }
+                });
+                await cache.put(url, fallbackResponse);
+                console.log(`✅ Created fallback for: ${url}`);
+              }
             }
-          })
-        );
-      })
-      .then(() => {
-        console.log('✅ Service Worker: Activated successfully');
-        return self.clients.claim();
-      })
+          } catch (error) {
+            console.error(`❌ Error caching ${url}:`, error);
+            
+            // Create fallback for critical pages even if fetch fails
+            if (url === '/' || url === '/offline') {
+              const fallbackResponse = new Response(generateOfflineHTML(), {
+                status: 200,
+                statusText: 'OK',
+                headers: {
+                  'Content-Type': 'text/html',
+                  'Cache-Control': 'no-cache'
+                }
+              });
+              await cache.put(url, fallbackResponse);
+              console.log(`✅ Created emergency fallback for: ${url}`);
+            }
+          }
+        });
+        
+        await Promise.allSettled(cachePromises);
+        
+        // Initialize other caches
+        await caches.open(RUNTIME_CACHE);
+        await caches.open(STATIC_CACHE);
+        
+        console.log('✅ SW v4.0.0: Installation complete');
+        
+      } catch (error) {
+        console.error('❌ SW v4.0.0: Installation failed:', error);
+      }
+    })()
   );
 });
 
-// Helper function to check if request is cacheable
-function isCacheableRequest(request) {
-  const url = new URL(request.url);
+// Activate event - Clean up and take control
+self.addEventListener('activate', (event) => {
+  console.log('🚀 SW v4.0.0: Activating...');
   
-  // Only cache supported schemes
-  if (!CACHEABLE_SCHEMES.includes(url.protocol.slice(0, -1))) {
-    return false;
-  }
-  
-  // Skip extension requests
-  if (url.protocol.startsWith('chrome-extension') || 
-      url.protocol.startsWith('moz-extension') || 
-      url.protocol.startsWith('safari-extension')) {
-    return false;
-  }
-  
-  // Skip data URLs
-  if (url.protocol === 'data:') {
-    return false;
-  }
-  
-  return true;
-}
-
-// Check if request is for WebLLM resources
-function isWebLLMRequest(request) {
-  const url = request.url.toLowerCase();
-  return WEBLLM_MODEL_PATTERNS.some(pattern => url.includes(pattern.toLowerCase()));
-}
-
-// Fetch event - implement caching strategies
-self.addEventListener('fetch', (event) => {
-  const { request } = event;
-  
-  // Skip non-cacheable requests
-  if (!isCacheableRequest(request)) {
-    return;
-  }
-  
-  const url = new URL(request.url);
-
-  // Handle WebLLM model requests with special caching
-  if (isWebLLMRequest(request)) {
-    event.respondWith(handleWebLLMRequest(request));
-    return;
-  }
-
-  // In development mode, don't intercept API requests
-  if (isDevelopment() && url.pathname.startsWith('/api/')) {
-    console.log('🔧 Service Worker: Skipping API interception in development:', url.pathname);
-    return;
-  }
-
-  // Handle emergency contacts only (no AI fallback)
-  if (url.pathname.startsWith('/api/emergency-contacts')) {
-    event.respondWith(handleEmergencyContacts(request));
-  }
-  // Handle API requests (only in production)
-  else if (url.pathname.startsWith('/api/')) {
-    event.respondWith(handleApiRequest(request));
-  }
-  // Handle page requests
-  else if (request.mode === 'navigate') {
-    event.respondWith(handlePageRequest(request));
-  }
-  // Handle static resources
-  else {
-    event.respondWith(handleStaticRequest(request));
-  }
+  event.waitUntil(
+    (async () => {
+      try {
+        // Delete old caches
+        const cacheNames = await caches.keys();
+        const deletePromises = cacheNames
+          .filter(name => name.includes('villagestay') && !name.includes('v4.0.0'))
+          .map(name => {
+            console.log(`🗑️ Deleting old cache: ${name}`);
+            return caches.delete(name);
+          });
+        
+        await Promise.all(deletePromises);
+        
+        // Take control of all clients immediately
+        await self.clients.claim();
+        
+        console.log('✅ SW v4.0.0: Activated and claimed all clients');
+        
+        // Notify all clients that SW is ready
+        const clients = await self.clients.matchAll();
+        clients.forEach(client => {
+          client.postMessage({
+            type: 'SW_ACTIVATED',
+            version: 'v4.0.0'
+          });
+        });
+        
+      } catch (error) {
+        console.error('❌ SW v4.0.0: Activation failed:', error);
+      }
+    })()
+  );
 });
 
-// Handle WebLLM model requests with aggressive caching
-async function handleWebLLMRequest(request) {
-  const cache = await caches.open(WEBLLM_CACHE);
+// Fetch event - Handle all requests with proper offline support
+self.addEventListener('fetch', (event) => {
+  // Only handle GET requests
+  if (event.request.method !== 'GET') {
+    return;
+  }
+  
+  const url = new URL(event.request.url);
+  
+  // Skip non-HTTP requests
+  if (!url.protocol.startsWith('http')) {
+    return;
+  }
+  
+  // Skip requests to other domains (except for known CDNs)
+  if (url.origin !== self.location.origin && !isTrustedDomain(url.hostname)) {
+    return;
+  }
+  
+  event.respondWith(handleRequest(event.request));
+});
+
+// Main request handler
+async function handleRequest(request) {
+  const url = new URL(request.url);
   
   try {
-    // Always try cache first for WebLLM resources (they're large and stable)
-    const cachedResponse = await cache.match(request);
+    // Handle navigation requests (pages) - MOST IMPORTANT for offline
+    if (request.mode === 'navigate') {
+      return await handleNavigationRequest(request);
+    }
+    
+    // Handle API requests
+    if (url.pathname.startsWith('/api/')) {
+      return await handleAPIRequest(request);
+    }
+    
+    // Handle static assets
+    return await handleStaticRequest(request);
+    
+  } catch (error) {
+    console.error('❌ SW: Request handling failed:', error);
+    return await createFallbackResponse(request);
+  }
+}
+
+// Handle navigation requests - Critical for offline functionality
+async function handleNavigationRequest(request) {
+  const url = new URL(request.url);
+  console.log(`🧭 Navigation request: ${url.pathname}`);
+  
+  try {
+    // Get the main cache
+    const cache = await caches.open(CACHE_NAME);
+    
+    // For any navigation request, first try cache
+    let cachedResponse = await cache.match('/');
     
     if (cachedResponse) {
-      console.log('🤖 Service Worker: Serving WebLLM resource from cache');
+      console.log('✅ Serving cached home page for navigation');
+      
+      // Try to update cache in background
+      updateNavigationCacheInBackground(request, cache);
+      
       return cachedResponse;
     }
     
-    // Fetch from network if not cached
-    console.log('🌐 Service Worker: Fetching WebLLM resource from network');
-    const response = await fetch(request);
+    // If no cache, try network
+    console.log('🌐 No cache found, trying network...');
+    const networkResponse = await fetch(request);
     
-    if (response.ok) {
-      // Cache WebLLM resources aggressively
-      await cache.put(request, response.clone());
-      console.log('✅ Service Worker: WebLLM resource cached');
+    if (networkResponse.ok) {
+      // Cache successful response
+      await cache.put('/', networkResponse.clone());
+      console.log('✅ Cached network response');
+      return networkResponse;
     }
     
-    return response;
+    throw new Error(`Network response not ok: ${networkResponse.status}`);
+    
   } catch (error) {
-    console.error('❌ Service Worker: Failed to fetch WebLLM resource', error);
-    throw error;
-  }
-}
-
-// Handle only emergency contacts (no mock AI responses)
-async function handleEmergencyContacts(request) {
-  return new Response(
-    JSON.stringify({
-      contacts: EMERGENCY_CONTACTS,
-      timestamp: new Date().toISOString(),
-      source: 'service-worker'
-    }),
-    {
+    console.log('❌ Navigation failed, serving fallback:', error.message);
+    
+    // Return our offline HTML as last resort
+    return new Response(generateOfflineHTML(), {
       status: 200,
-      headers: { 
-        'Content-Type': 'application/json',
-        'X-Served-By': 'emergency-contacts'
+      statusText: 'OK',
+      headers: {
+        'Content-Type': 'text/html',
+        'Cache-Control': 'no-cache'
       }
-    }
-  );
+    });
+  }
 }
 
-// Handle API requests with network-first strategy (production only)
-async function handleApiRequest(request) {
-  if (!isCacheableRequest(request)) {
-    return fetch(request);
+// Handle API requests
+async function handleAPIRequest(request) {
+  const url = new URL(request.url);
+  
+  // Handle emergency contacts offline
+  if (url.pathname.includes('emergency')) {
+    return new Response(JSON.stringify({
+      contacts: {
+        police: 100,
+        fire: 101,
+        ambulance: 108,
+        tourist: 1363,
+        women: 1091
+      },
+      timestamp: new Date().toISOString(),
+      source: 'offline'
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
-
-  const cache = await caches.open(API_CACHE_NAME);
   
   try {
-    // Try network first
-    console.log('🌐 Service Worker: Trying network for API request');
-    const response = await fetch(request);
+    // Try network first for API calls
+    const networkResponse = await fetch(request);
     
-    // Cache successful responses
-    if (response.ok) {
-      const responseClone = response.clone();
-      await cache.put(request, responseClone);
-      console.log('✅ Service Worker: Cached API response');
+    if (networkResponse.ok) {
+      // Cache successful API responses
+      const cache = await caches.open(RUNTIME_CACHE);
+      await cache.put(request, networkResponse.clone());
+      return networkResponse;
     }
     
-    return response;
-  } catch (error) {
-    console.log('🌐 Service Worker: Network failed, trying cache for API');
+    throw new Error('API network request failed');
     
-    // Fallback to cache
+  } catch (error) {
+    // Try cache for API requests
+    const cache = await caches.open(RUNTIME_CACHE);
     const cachedResponse = await cache.match(request);
     
     if (cachedResponse) {
-      const headers = new Headers(cachedResponse.headers);
-      headers.set('X-Served-By', 'cache');
-      
-      return new Response(cachedResponse.body, {
-        status: cachedResponse.status,
-        statusText: cachedResponse.statusText,
-        headers: headers
+      return cachedResponse;
+    }
+    
+    // Return offline API response
+    return new Response(JSON.stringify({
+      error: 'offline',
+      message: 'This feature requires an internet connection',
+      timestamp: new Date().toISOString()
+    }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+// Handle static requests (CSS, JS, images, etc.)
+async function handleStaticRequest(request) {
+  try {
+    const cache = await caches.open(STATIC_CACHE);
+    
+    // Try cache first for static assets
+    const cachedResponse = await cache.match(request);
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+    
+    // Try network
+    const networkResponse = await fetch(request);
+    if (networkResponse.ok) {
+      await cache.put(request, networkResponse.clone());
+      return networkResponse;
+    }
+    
+    throw new Error('Static request failed');
+    
+  } catch (error) {
+    // Return appropriate fallback based on request type
+    const url = new URL(request.url);
+    
+    if (url.pathname.endsWith('.css')) {
+      return new Response('/* CSS not available offline */', {
+        status: 200,
+        headers: { 'Content-Type': 'text/css' }
       });
     }
     
-    // Return simple offline response
-    return new Response(
-      JSON.stringify({
-        error: 'Network Error',
-        message: 'No internet connection available.',
-        offline: true
-      }),
-      {
-        status: 503,
-        headers: { 'Content-Type': 'application/json' }
-      }
-    );
+    if (url.pathname.endsWith('.js')) {
+      return new Response('// JavaScript not available offline', {
+        status: 200,
+        headers: { 'Content-Type': 'application/javascript' }
+      });
+    }
+    
+    if (url.pathname.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) {
+      // Return a simple SVG placeholder
+      const svg = generatePlaceholderSVG();
+      return new Response(svg, {
+        status: 200,
+        headers: { 'Content-Type': 'image/svg+xml' }
+      });
+    }
+    
+    return new Response('Not available offline', { status: 503 });
   }
 }
 
-// Handle page requests with cache-first for performance
-async function handlePageRequest(request) {
-  if (!isCacheableRequest(request)) {
-    return fetch(request);
-  }
+// Helper functions
+function isTrustedDomain(hostname) {
+  const trustedDomains = [
+    'fonts.googleapis.com',
+    'fonts.gstatic.com',
+    'cdn.jsdelivr.net',
+    'unpkg.com'
+  ];
+  return trustedDomains.some(domain => hostname.includes(domain));
+}
 
-  const cache = await caches.open(CACHE_NAME);
-  
+async function updateNavigationCacheInBackground(request, cache) {
   try {
-    // Check cache first for faster loading
-    const cachedResponse = await cache.match(request);
-    
-    if (cachedResponse) {
-      // Update cache in background
-      fetch(request)
-        .then((response) => {
-          if (response.ok && isCacheableRequest(request)) {
-            cache.put(request, response.clone()).catch(console.error);
-          }
-        })
-        .catch(() => {});
-      
-      return cachedResponse;
-    }
-    
-    // Try network if not in cache
     const response = await fetch(request);
-    
     if (response.ok) {
-      await cache.put(request, response.clone());
+      await cache.put('/', response);
+      console.log('🔄 Background cache update successful');
     }
-    
-    return response;
   } catch (error) {
-    console.log('🌐 Service Worker: Serving offline page');
-    
-    // Serve offline page
-    const offlineResponse = await cache.match(OFFLINE_PAGE);
-    return offlineResponse || new Response('Offline');
+    console.log('🔄 Background cache update failed:', error.message);
   }
 }
 
-// Handle static resources with cache-first strategy
-async function handleStaticRequest(request) {
-  if (!isCacheableRequest(request)) {
-    return fetch(request);
-  }
-
-  const cache = await caches.open(CACHE_NAME);
-  
-  try {
-    // Try cache first
-    const cachedResponse = await cache.match(request);
-    
-    if (cachedResponse) {
-      return cachedResponse;
-    }
-    
-    // Fallback to network
-    const response = await fetch(request);
-    
-    if (response.ok) {
-      await cache.put(request, response.clone());
-    }
-    
-    return response;
-  } catch (error) {
-    console.log('❌ Service Worker: Failed to fetch resource', request.url);
-    return new Response('Resource not available offline', { 
-      status: 503, 
-      statusText: 'Service Unavailable' 
+async function createFallbackResponse(request) {
+  if (request.mode === 'navigate') {
+    return new Response(generateOfflineHTML(), {
+      status: 200,
+      headers: { 'Content-Type': 'text/html' }
     });
   }
+  
+  return new Response('Service temporarily unavailable', {
+    status: 503,
+    headers: { 'Content-Type': 'text/plain' }
+  });
 }
 
-// Background sync for essential data only
-self.addEventListener('sync', (event) => {
-  console.log('🔄 Service Worker: Background sync triggered');
-  
-  if (event.tag === 'background-sync-bookings') {
-    event.waitUntil(syncBookings());
-  }
-  
-  if (event.tag === 'background-sync-favorites') {
-    event.waitUntil(syncFavorites());
-  }
-  
-  if (event.tag === 'sync-webllm-usage') {
-    event.waitUntil(syncWebLLMUsage());
-  }
-});
-
-// Push notification handling
-self.addEventListener('push', (event) => {
-  console.log('📬 Service Worker: Push notification received');
-  
-  if (!event.data) return;
-  
-  const data = event.data.json();
-  
-  const options = {
-    body: data.body,
-    icon: '/icons/icon-192x192.png',
-    badge: '/icons/badge-72x72.png',
-    image: data.image,
-    data: data.data,
-    actions: [
-      {
-        action: 'view',
-        title: 'View Details'
-      },
-      {
-        action: 'dismiss',
-        title: 'Dismiss'
-      }
-    ],
-    tag: data.tag || 'villagestay-notification',
-    requireInteraction: false,
-    silent: false
-  };
-  
-  event.waitUntil(
-    self.registration.showNotification(data.title, options)
-  );
-});
-
-// Notification click handling
-self.addEventListener('notificationclick', (event) => {
-  console.log('🔔 Service Worker: Notification clicked');
-  
-  event.notification.close();
-  
-  const action = event.action;
-  const data = event.notification.data;
-  
-  if (action === 'dismiss') {
-    return;
-  }
-  
-  let url = '/';
-  
-  if (data) {
-    switch (data.type) {
-      case 'booking_confirmation':
-        url = `/bookings/${data.bookingId}`;
-        break;
-      case 'weather_alert':
-        url = `/listings?location=${data.location}`;
-        break;
-      default:
-        url = data.url || '/';
-    }
-  }
-  
-  event.waitUntil(
-    clients.matchAll({ type: 'window' })
-      .then((clientList) => {
-        for (const client of clientList) {
-          if (client.url.includes(url) && 'focus' in client) {
-            return client.focus();
-          }
+// Generate comprehensive offline HTML
+function generateOfflineHTML() {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VillageStay - Discover Rural India</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            padding: 20px;
+        }
+        .container {
+            text-align: center;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+        .logo {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            animation: pulse 2s infinite;
+        }
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #22c55e, #16a34a);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        h2 {
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+            opacity: 0.9;
+        }
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        .feature {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 25px;
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.3s ease;
+        }
+        .feature:hover {
+            transform: translateY(-5px);
+        }
+        .feature-icon {
+            font-size: 2rem;
+            margin-bottom: 15px;
+        }
+        .feature h3 {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+        }
+        .feature p {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            line-height: 1.5;
+        }
+        .status {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .status.online {
+            background: rgba(34, 197, 94, 0.3);
+        }
+        .status.offline {
+            background: rgba(239, 68, 68, 0.3);
+        }
+        .btn {
+            background: linear-gradient(45deg, #22c55e, #16a34a);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 10px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(34, 197, 94, 0.3);
+        }
+        .btn:active {
+            transform: translateY(0);
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        .offline-features {
+            margin-top: 20px;
+            text-align: left;
+        }
+        .offline-features h4 {
+            margin-bottom: 15px;
+            color: #22c55e;
+        }
+        .offline-features ul {
+            list-style: none;
+            padding: 0;
+        }
+        .offline-features li {
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .offline-features li:before {
+            content: "✓ ";
+            color: #22c55e;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🏘️</div>
+        <h1>VillageStay</h1>
+        <h2>AI-Powered Rural Tourism</h2>
+        
+        <div class="status" id="status">
+            <span id="status-icon">📡</span>
+            <span id="status-text">Checking connection...</span>
+        </div>
+        
+        <div class="features">
+            <div class="feature">
+                <div class="feature-icon">🤖</div>
+                <h3>AI Assistant</h3>
+                <p>Maya is available offline to help with emergency contacts, travel tips, and local guidance</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">📱</div>
+                <h3>Cached Content</h3>
+                <p>Browse previously viewed villages and listings even without internet</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🆘</div>
+                <h3>Emergency Info</h3>
+                <p>Access critical emergency numbers and safety information anytime</p>
+            </div>
+        </div>
+        
+        <div class="offline-features">
+            <h4>Available Offline:</h4>
+            <ul>
+                <li>Emergency contact numbers (Police: 100, Ambulance: 108)</li>
+                <li>AI travel assistant with offline capabilities</li>
+                <li>Previously viewed village listings</li>
+                <li>Saved favorites and bookmarks</li>
+                <li>Basic app navigation</li>
+            </ul>
+        </div>
+        
+        <div style="margin-top: 30px;">
+            <button class="btn" onclick="checkConnection()">🔄 Refresh</button>
+            <button class="btn" onclick="goHome()" style="background: linear-gradient(45deg, #3b82f6, #1d4ed8);">🏠 Home</button>
+        </div>
+    </div>
+    
+    <script>
+        function updateStatus() {
+            const status = document.getElementById('status');
+            const statusIcon = document.getElementById('status-icon');
+            const statusText = document.getElementById('status-text');
+            
+            if (navigator.onLine) {
+                status.className = 'status online';
+                statusIcon.textContent = '🟢';
+                statusText.textContent = 'Connected - Content will update';
+                
+                // Auto refresh after a delay when back online
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+            } else {
+                status.className = 'status offline';
+                statusIcon.textContent = '🔴';
+                statusText.textContent = 'Offline Mode - Limited functionality available';
+            }
         }
         
-        if (clients.openWindow) {
-          return clients.openWindow(url);
+        function checkConnection() {
+            updateStatus();
+            if (navigator.onLine) {
+                window.location.reload();
+            }
         }
-      })
-  );
-});
+        
+        function goHome() {
+            window.location.href = '/';
+        }
+        
+        // Update status on load and when connection changes
+        updateStatus();
+        window.addEventListener('online', updateStatus);
+        window.addEventListener('offline', updateStatus);
+        
+        // Check for service worker updates
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.addEventListener('message', function(event) {
+                if (event.data && event.data.type === 'SW_ACTIVATED') {
+                    console.log('Service Worker activated:', event.data.version);
+                }
+            });
+        }
+    </script>
+</body>
+</html>`;
+}
 
-// Message handling for WebLLM status updates only
+// Generate placeholder SVG for images
+function generatePlaceholderSVG() {
+  return `<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
+    <rect width="100%" height="100%" fill="#f3f4f6"/>
+    <circle cx="200" cy="120" r="30" fill="#d1d5db"/>
+    <rect x="170" y="160" width="60" height="40" fill="#d1d5db"/>
+    <text x="200" y="220" text-anchor="middle" fill="#6b7280" font-family="Arial" font-size="14">
+      Image offline
+    </text>
+  </svg>`;
+}
+
+// Message handling
 self.addEventListener('message', (event) => {
-  console.log('💬 Service Worker: Message received', event.data);
-  
-  if (event.data && event.data.type === 'WEBLLM_STATUS_UPDATE') {
-    const { status, progress } = event.data;
-    console.log(`🤖 Service Worker: WebLLM status update - ${status} (${progress}%)`);
-    
-    // Store WebLLM status for other tabs
-    storeOfflineData('webllm-status', {
-      id: 'current-status',
-      status,
-      progress,
-      timestamp: new Date().toISOString()
-    });
-  }
-  
-  if (event.data && event.data.type === 'GET_EMERGENCY_CONTACTS') {
-    event.ports[0].postMessage({
-      type: 'EMERGENCY_CONTACTS',
-      contacts: EMERGENCY_CONTACTS
-    });
-  }
-  
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
 });
 
-// Essential sync functions
-async function syncBookings() {
-  try {
-    const offlineBookings = await getOfflineData('bookings');
-    
-    for (const booking of offlineBookings) {
-      try {
-        await fetch('/api/bookings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(booking)
-        });
-        
-        await removeOfflineData('bookings', booking.id);
-      } catch (error) {
-        console.error('Failed to sync booking:', error);
-      }
-    }
-  } catch (error) {
-    console.error('Background sync failed:', error);
-  }
-}
-
-async function syncFavorites() {
-  try {
-    const offlineFavorites = await getOfflineData('favorites');
-    
-    for (const favorite of offlineFavorites) {
-      try {
-        await fetch('/api/favorites', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(favorite)
-        });
-        
-        await removeOfflineData('favorites', favorite.id);
-      } catch (error) {
-        console.error('Failed to sync favorite:', error);
-      }
-    }
-  } catch (error) {
-    console.error('Favorites sync failed:', error);
-  }
-}
-
-async function syncWebLLMUsage() {
-  try {
-    const usageData = await getOfflineData('webllm-usage');
-    
-    for (const usage of usageData) {
-      try {
-        await fetch('/api/ai-features/usage-analytics', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(usage)
-        });
-        
-        await removeOfflineData('webllm-usage', usage.id);
-      } catch (error) {
-        console.error('Failed to sync WebLLM usage:', error);
-      }
-    }
-  } catch (error) {
-    console.error('WebLLM usage sync failed:', error);
-  }
-}
-
-// Minimal IndexedDB helpers
-async function storeOfflineData(store, data) {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open('VillageStayOffline', 3);
-    
-    request.onupgradeneeded = (event) => {
-      const db = event.target.result;
-      
-      const stores = ['bookings', 'favorites', 'webllm-status', 'webllm-usage'];
-      
-      stores.forEach(storeName => {
-        if (!db.objectStoreNames.contains(storeName)) {
-          db.createObjectStore(storeName, { keyPath: 'id' });
-        }
-      });
-    };
-    
-    request.onsuccess = (event) => {
-      const db = event.target.result;
-      
-      if (!db.objectStoreNames.contains(store)) {
-        db.close();
-        resolve();
-        return;
-      }
-      
-      const transaction = db.transaction([store], 'readwrite');
-      const objectStore = transaction.objectStore(store);
-      
-      const storeRequest = objectStore.put(data);
-      storeRequest.onsuccess = () => {
-        db.close();
-        resolve();
-      };
-      storeRequest.onerror = () => {
-        db.close();
-        reject(storeRequest.error);
-      };
-    };
-    
-    request.onerror = () => reject(request.error);
-  });
-}
-
-async function getOfflineData(store) {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open('VillageStayOffline', 3);
-    
-    request.onsuccess = (event) => {
-      const db = event.target.result;
-      
-      if (!db.objectStoreNames.contains(store)) {
-        db.close();
-        resolve([]);
-        return;
-      }
-      
-      const transaction = db.transaction([store], 'readonly');
-      const objectStore = transaction.objectStore(store);
-      const getRequest = objectStore.getAll();
-      
-      getRequest.onsuccess = () => {
-        db.close();
-        resolve(getRequest.result);
-      };
-      
-      getRequest.onerror = () => {
-        db.close();
-        reject(getRequest.error);
-      };
-    };
-    
-    request.onerror = () => reject(request.error);
-  });
-}
- 
-async function removeOfflineData(store, id) {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open('VillageStayOffline', 3);
-    
-    request.onsuccess = (event) => {
-      const db = event.target.result;
-      
-      if (!db.objectStoreNames.contains(store)) {
-        db.close();
-        resolve();
-        return;
-      }
-      
-      const transaction = db.transaction([store], 'readwrite');
-      const objectStore = transaction.objectStore(store);
-      const deleteRequest = objectStore.delete(id);
-      
-      deleteRequest.onsuccess = () => {
-        db.close();
-        resolve();
-      };
-      
-      deleteRequest.onerror = () => {
-        db.close();
-        reject(deleteRequest.error);
-      };
-    };
-    
-    request.onerror = () => reject(request.error);
-  });
-}
-
-console.log('✅ VillageStay Service Worker v1.4.0 loaded with clean WebLLM support');
+console.log('✅ VillageStay Service Worker v4.0.0 - Perfect Offline Loading Ready');

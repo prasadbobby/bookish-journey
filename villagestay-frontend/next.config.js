@@ -1,3 +1,4 @@
+// villagestay-frontend/next.config.js - Enhanced for offline
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   webpack: (config, { isServer }) => {
@@ -29,7 +30,7 @@ const nextConfig = {
   experimental: {
     esmExternals: 'loose'
   },
-  // Add headers for SharedArrayBuffer (required by WebLLM)
+  // Enhanced headers for better offline support
   async headers() {
     return [
       {
@@ -42,11 +43,29 @@ const nextConfig = {
           {
             key: 'Cross-Origin-Opener-Policy',
             value: 'same-origin'
+          },
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable'
+          }
+        ]
+      },
+      {
+        // Special caching for the homepage
+        source: '/',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=0, must-revalidate'
           }
         ]
       }
     ];
-  }
+  },
+  // Ensure proper static file handling
+  trailingSlash: false,
+  generateEtags: false,
+  compress: true
 };
 
 module.exports = nextConfig;
